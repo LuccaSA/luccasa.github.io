@@ -3,17 +3,19 @@
 	angular.module('moment', []).factory('moment', function () { return window.moment; });
 	angular.module('underscore', []).factory('_', function () { return window._; });
 	
-	angular.module('lui.directives', ['moment', 'underscore','ui.select']);
+	angular.module('lui.directives', ['moment', 'underscore', 'ui.select', 'ui.bootstrap']);
 	angular.module('lui.filters', ['moment']);
 	angular.module('lui.services', []);
 
 	// all the templates in one module
-	angular.module('lui.templates.momentpicker', []); // module defined here and used in a different file so every page doesnt have to reference moment-picker.js
-	angular.module('lui.templates', ['lui.templates.momentpicker']);
+	angular.module('lui.templates.momentpicker', []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
+	angular.module("lui.templates.daterangepicker", []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
+	angular.module('lui.templates', ['lui.templates.momentpicker', "lui.templates.daterangepicker"]);
 	
 	// all the translations in one module
 	angular.module('lui.translates.userpicker', []);
-	angular.module('lui.translates', ['pascalprecht.translate','lui.translates.userpicker']);
+	angular.module('lui.translates.daterangepicker', []);
+	angular.module('lui.translates', ['pascalprecht.translate','lui.translates.userpicker','lui.translates.daterangepicker']);
 	
 	angular.module('lui', ['lui.directives','lui.services','lui.filters','lui.templates','lui.translates']);
 })();
@@ -227,6 +229,9 @@
 
 			// bind to various events - here only keypress=enter
 			luidTimespanCtrl.setupEvents(element.find('input'));
+
+			// set to given mode or to default mode
+			luidTimespanCtrl.mode = attrs.mode ? attrs.mode : "timespan";
 		}
 
 
@@ -237,7 +242,8 @@
 				step: '=', // default = 5
 				unit: '=', // 'hours', 'hour', 'h' or 'm', default='m'
 				ngDisabled: '=',
-				placeholder: '@'
+				placeholder: '@',
+				mode: "=" // 'timespan', 'moment.duration', default='timespan'
 			},
 			restrict: 'EA',
 			link: link,
@@ -245,6 +251,7 @@
 		};
 	}])
 	.controller('luidTimespanController', ['$scope', 'moment', function ($scope, moment) {
+		var ctrl = this;
 
 		// public methods for update
 		$scope.updateValue = function () {
@@ -267,7 +274,11 @@
 			updateWithoutRender(newValue);
 		};
 		var format = function (dur) {
-			return (dur.days() > 0 ? Math.floor(dur.asDays()) + '.' : '') + (dur.hours() < 10 ? '0' : '') + dur.hours() + ':' + (dur.minutes() < 10 ? '0' : '') + dur.minutes() + ':00';
+			if (ctrl.mode === 'timespan') {
+				return (dur.days() > 0 ? Math.floor(dur.asDays()) + '.' : '') + (dur.hours() < 10 ? '0' : '') + dur.hours() + ':' + (dur.minutes() < 10 ? '0' : '') + dur.minutes() + ':00';
+			} else {
+				return dur;
+			}
 		};
 		var parse = function (strInput) {
 			var newDuration;
@@ -309,7 +320,12 @@
 
 		// private - formatting stuff
 		var formatValue = function (duration) {
-			return Math.floor(duration.asDays()) + '.' + (duration.hours() < 10 ? '0' : '') + duration.hours() + ':' + (duration.minutes() < 10 ? '0' : '') + duration.minutes() + ':00';
+			if (ctrl.mode === "timespan") {
+				return Math.floor(duration.asDays()) + '.' + (duration.hours() < 10 ? '0' : '') + duration.hours() + ':' + (duration.minutes() < 10 ? '0' : '') + duration.minutes() + ':00';
+			}
+			else {
+				return duration;
+			}
 		};
 
 		// private - updates of some kinds

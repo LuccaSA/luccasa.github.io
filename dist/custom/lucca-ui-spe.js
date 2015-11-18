@@ -3,19 +3,202 @@
 	angular.module('moment', []).factory('moment', function () { return window.moment; });
 	angular.module('underscore', []).factory('_', function () { return window._; });
 	
-	angular.module('lui.directives', ['moment', 'underscore','ui.select']);
+	angular.module('lui.directives', ['moment', 'underscore', 'ui.select', 'ui.bootstrap']);
 	angular.module('lui.filters', ['moment']);
 	angular.module('lui.services', []);
 
 	// all the templates in one module
-	angular.module('lui.templates.momentpicker', []); // module defined here and used in a different file so every page doesnt have to reference moment-picker.js
-	angular.module('lui.templates', ['lui.templates.momentpicker']);
+	angular.module('lui.templates.momentpicker', []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
+	angular.module("lui.templates.daterangepicker", []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
+	angular.module('lui.templates', ['lui.templates.momentpicker', "lui.templates.daterangepicker"]);
 	
 	// all the translations in one module
 	angular.module('lui.translates.userpicker', []);
-	angular.module('lui.translates', ['pascalprecht.translate','lui.translates.userpicker']);
+	angular.module('lui.translates.daterangepicker', []);
+	angular.module('lui.translates', ['pascalprecht.translate','lui.translates.userpicker','lui.translates.daterangepicker']);
 	
 	angular.module('lui', ['lui.directives','lui.services','lui.filters','lui.templates','lui.translates']);
+})();
+;(function(){
+	'use strict';
+		/**
+	** DEPENDENCIES
+	**  - moment
+	**  - ui bootstrap datepicker
+	**  - ui bootstrap popover
+	**/
+
+	angular.module('lui.directives')
+	.directive('luidDaterange', ['moment', '$filter', function(moment, $filter){
+		function link(scope, element, attrs, ctrls){
+			var ngModelCtrl = ctrls[1];
+			var drCtrl = ctrls[0];
+			scope.internal={};
+
+			scope.hasPeriods = !!attrs.periods;
+
+			ngModelCtrl.$render = function(){
+				if(!ngModelCtrl.$viewValue){ 
+					scope.internal.startsOn = undefined;
+					scope.internal.endsOn = undefined;
+					scope.internal.strFriendly = undefined;
+					return; 
+				}
+
+				var parsed = parse(ngModelCtrl.$viewValue);
+				scope.internal.startsOn = parsed.startsOn;
+				scope.internal.endsOn = parsed.endsOn;
+				scope.internal.strFriendly = $filter("luifFriendlyRange")(scope.internal);
+			};
+			scope.$watch(function($scope){ return ngModelCtrl.$viewValue[$scope.startProperty || "startsOn"]; }, function(){ ngModelCtrl.$render(); });
+			scope.$watch(function($scope){ return ngModelCtrl.$viewValue[$scope.endProperty || "endsOn"]; }, function(){ ngModelCtrl.$render(); });
+			
+			drCtrl.updateValue = function(startsOn, endsOn){
+				var newValue = ngModelCtrl.$viewValue;
+				var formatted = format(startsOn,endsOn);
+				newValue[Object.keys(formatted)[0]] = formatted[Object.keys(formatted)[0]];
+				newValue[Object.keys(formatted)[1]] = formatted[Object.keys(formatted)[1]];
+				ngModelCtrl.$setViewValue(newValue);
+				// ngModelCtrl.$render();
+			};
+			var format = function(startsOn, endsOn){
+				var mstart = moment(startsOn);
+				var mend = moment(endsOn);
+				if(scope.excludeEnd){
+					mend.add(1, 'd');
+				}
+				var startProperty = scope.startProperty || 'startsOn';
+				var endProperty = scope.endProperty || 'endsOn';
+				var result = {};
+				switch(scope.format || "moment"){
+					case "moment":
+						result[startProperty] = mstart;
+						result[endProperty] = mend;
+						break;
+					case "date":
+						result[startProperty] = mstart.toDate();
+						result[endProperty] = mend.toDate();
+						break;
+					default:
+						result[startProperty] = mstart.format(scope.format);
+						result[endProperty] = mend.format(scope.format);
+				}
+				return result;
+			};
+			var parse = function(viewValue){
+				var startProperty = scope.startProperty || 'startsOn';
+				var endProperty = scope.endProperty || 'endsOn';
+				var mstart, mend;
+				switch(scope.format || "moment"){
+					case "moment":
+					case "date":
+						mstart = moment(viewValue[startProperty]);
+						mend = moment(viewValue[endProperty]);
+						break;
+					default:
+						mstart = moment(viewValue[startProperty], scope.format);
+						mend = moment(viewValue[endProperty], scope.format);
+				}
+				if(scope.excludeEnd){
+					mend.add(-1, 'd');
+				}
+				var parsed = { startsOn: mstart.toDate(), endsOn:mend.toDate() };
+				return parsed;
+			};
+		}
+		return{
+			require:['luidDaterange','^ngModel'],
+			controller:'luidDaterangeController',
+			scope: {
+				disabled:'=',
+
+				format:'@', // if you want to bind to moments, dates or a string with a specific format
+				startProperty: '@',
+				endProperty: '@',
+
+				popoverPlacement:'@',
+
+				excludeEnd:'=', // user will see "oct 1st - 31st" and the $viewvalue will be "oct 1st - nov 1st"
+
+				periods:'=', // an array like that [{label:'this month', startsOn:<Date or moment or string parsable by moment>, endsOn:idem}, {...}]
+			},
+			templateUrl:"lui/directives/luidDaterange.html",
+			restrict:'EA',
+			link:link
+		};
+	}])
+	.controller('luidDaterangeController', ['$scope', 'moment', '$filter', function($scope, moment, $filter){
+		var ctrl = this;
+
+		$scope.internalUpdated = function(){
+			if(moment($scope.internal.startsOn).diff($scope.internal.endsOn) > 0){
+				$scope.internal.endsOn = moment($scope.internal.startsOn);
+			}
+
+			// HACKS
+			$scope.hackRefresh = !$scope.hackRefresh;
+
+			ctrl.updateValue($scope.internal.startsOn, $scope.internal.endsOn);
+			$scope.internal.strFriendly = $filter("luifFriendlyRange")($scope.internal);
+		};
+
+		$scope.goToPeriod = function(period){
+			$scope.internal.startsOn = moment(period.startsOn).toDate();
+			$scope.internal.endsOn = moment(period.endsOn).toDate();
+			if($scope.excludeEnd){ $scope.internal.endsOn = moment(period.endsOn).add(-1,'day').toDate(); }
+			$scope.internalUpdated();
+		};
+
+		// Popover display
+		$scope.popoverOpened = false;
+		$scope.togglePopover = function(){
+			$scope.popoverOpened = !$scope.popoverOpened;
+		};
+
+		// datepickers stuff
+		$scope.dayClass = function(date, mode){
+			var className = "";
+			if(mode === "day" && moment(date).diff($scope.internal.startsOn) === 0) {
+				className = "start";
+			}
+			if(mode === "day" && moment(date).diff($scope.internal.endsOn) === 0){
+				className += "end";
+			}
+			if(mode === "day" && moment(date).isAfter($scope.internal.startsOn) && moment(date).isBefore($scope.internal.endsOn)) {
+				className += "in-between";
+			}
+			return className;
+		};
+
+	}]);
+
+
+	/**************************/
+	/***** TEMPLATEs      *****/
+	/**************************/
+	angular.module("lui.templates.daterangepicker").run(["$templateCache", function($templateCache) {
+		$templateCache.put("lui/directives/luidDaterange.html",
+			"<input ng-model='internal.strFriendly' ng-disabled='disabled || popoverOpen' ng-click='togglePopover()'" +
+			"popover-template=\"'lui/directives/luidDaterangePopover.html'\"" +
+			"popover-placement=\"{{popoverPlacement}}\"" +
+			"popover-trigger ='none' popover-is-open='popoverOpened'" +
+			"popover-class ='lui daterange popover {{hasPeriods?\"has-periods\":\"\"}}'" +
+			">");
+		$templateCache.put("lui/directives/luidDaterangePopover.html",
+			"<div class=\"lui clear\">" +
+			"	<div class=\"lui vertical pills shortcuts menu\">" +
+			"		<a class='lui item' ng-repeat='period in periods' ng-click='goToPeriod(period)'>{{period.label}}</a>" +
+			"	</div>" +
+			"	<datepicker ng-if='hackRefresh' class='lui datepicker' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></datepicker>" +
+			"	<datepicker ng-if='hackRefresh' class='lui datepicker' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></datepicker>" +
+			"	<datepicker ng-if='!hackRefresh' class='lui datepicker' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></datepicker>" +
+			"	<datepicker ng-if='!hackRefresh' class='lui datepicker' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></datepicker>" +
+			"</div>" +
+			"<footer>" +
+			"	<a class='lui right pulled primary button' ng-click='togglePopover()'>Ok</a>" +
+			"</footer>" +
+			"");
+	}]);
 })();
 ;(function(){
 	'use strict';
@@ -705,6 +888,9 @@
 
 			// bind to various events - here only keypress=enter
 			luidTimespanCtrl.setupEvents(element.find('input'));
+
+			// set to given mode or to default mode
+			luidTimespanCtrl.mode = attrs.mode ? attrs.mode : "timespan";
 		}
 
 
@@ -715,7 +901,8 @@
 				step: '=', // default = 5
 				unit: '=', // 'hours', 'hour', 'h' or 'm', default='m'
 				ngDisabled: '=',
-				placeholder: '@'
+				placeholder: '@',
+				mode: "=" // 'timespan', 'moment.duration', default='timespan'
 			},
 			restrict: 'EA',
 			link: link,
@@ -723,6 +910,7 @@
 		};
 	}])
 	.controller('luidTimespanController', ['$scope', 'moment', function ($scope, moment) {
+		var ctrl = this;
 
 		// public methods for update
 		$scope.updateValue = function () {
@@ -745,7 +933,11 @@
 			updateWithoutRender(newValue);
 		};
 		var format = function (dur) {
-			return (dur.days() > 0 ? Math.floor(dur.asDays()) + '.' : '') + (dur.hours() < 10 ? '0' : '') + dur.hours() + ':' + (dur.minutes() < 10 ? '0' : '') + dur.minutes() + ':00';
+			if (ctrl.mode === 'timespan') {
+				return (dur.days() > 0 ? Math.floor(dur.asDays()) + '.' : '') + (dur.hours() < 10 ? '0' : '') + dur.hours() + ':' + (dur.minutes() < 10 ? '0' : '') + dur.minutes() + ':00';
+			} else {
+				return dur;
+			}
 		};
 		var parse = function (strInput) {
 			var newDuration;
@@ -787,7 +979,12 @@
 
 		// private - formatting stuff
 		var formatValue = function (duration) {
-			return Math.floor(duration.asDays()) + '.' + (duration.hours() < 10 ? '0' : '') + duration.hours() + ':' + (duration.minutes() < 10 ? '0' : '') + duration.minutes() + ':00';
+			if (ctrl.mode === "timespan") {
+				return Math.floor(duration.asDays()) + '.' + (duration.hours() < 10 ? '0' : '') + duration.hours() + ':' + (duration.minutes() < 10 ? '0' : '') + duration.minutes() + ':00';
+			}
+			else {
+				return duration;
+			}
 		};
 
 		// private - updates of some kinds
@@ -905,25 +1102,41 @@
 
 	var MAX_COUNT = 5; // MAGIC_NUMBER
 	var MAGIC_NUMBER_maxUsers = 10000; // Number of users to retrieve when using a user-picker-multiple or custom filter
-	var DEFAULT_HOMONYMS_PROPERTIES = ["department.name", "legalEntity.name", "employeeNumber", "mail"]; // MAGIC_STRING
+	var DEFAULT_HOMONYMS_PROPERTIES = [{
+		"label": "LUIDUSERPICKER_DEPARTMENT",
+		"name": "department.name",
+		"icon": "location"
+	}, {
+		"label": "LUIDUSERPICKER_LEGALENTITY",
+		"name": "legalEntity.name",
+		"icon": "tree list"
+	}, {
+		"label": "LUIDUSERPICKER_EMPLOYEENUMBER",
+		"name": "employeeNumber",
+		"icon": "user"
+	}, {
+		"label": "LUIDUSERPICKER_MAIL",
+		"name": "mail",
+		"icon": "email"
+	}]; // MAGIC LIST OF PROPERTIES
 
 	var uiSelectChoicesTemplate = "<ui-select-choices position=\"down\" repeat=\"user in users\" refresh=\"find($select.search)\" refresh-delay=\"0\" ui-disable-choice=\"!!user.overflow\">" +
-	"<div ng-bind-html=\"user.firstName + ' ' + user.lastName | highlight: $select.search\" ng-if=\"!user.overflow\"></div>" +
-	"<small ng-if=\"!user.overflow && user.hasHomonyms && getProperty(user, property)\" ng-repeat=\"property in displayedProperties\">{{property}}: {{getProperty(user, property)}}<br/></small>" +
+	"<div ng-bind-html=\"user.firstName + ' ' + user.lastName | luifHighlight : $select.search : user.info\"></div>" +
+	"<small ng-if=\"!user.overflow && user.hasHomonyms && getProperty(user, property.name)\" ng-repeat=\"property in displayedProperties\"><i class=\"lui icon {{property.icon}}\"></i> <b>{{property.label | translate}}</b> {{getProperty(user, property.name)}}<br/></small>" +
 	"<small ng-if=\"showFormerEmployees && user.isFormerEmployee\" translate translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small>" +
 	"<small ng-if=\"user.overflow\" translate translate-values=\"{cnt:user.cnt, all:user.all}\">{{user.overflow}}</small>" +
 	"</ui-select-choices>";
 
-	var userPickerTemplate = "<ui-select ng-model=\"ngModel\" theme=\"bootstrap\"" +
+	var userPickerTemplate = "<ui-select theme=\"bootstrap\"" +
 	"class=\"lui regular nguibs-ui-select\" on-select=\"updateSelectedUser($select.selected)\" on-remove=\"onRemove()\" ng-disabled=\"controlDisabled\">" +
 	"<ui-select-match placeholder=\"{{ 'LUIDUSERPICKER_PLACEHOLDER' | translate }}\">{{ $select.selected.firstName }} {{$select.selected.lastName}}</ui-select-match>" +
 	uiSelectChoicesTemplate +
 	"</ui-select>";
 
-	var userPickerMultipleTemplate = "<ui-select multiple ng-model=\"selected.users\" theme=\"bootstrap\"" +
+	var userPickerMultipleTemplate = "<ui-select multipletheme=\"bootstrap\"" +
 	"class=\"lui regular nguibs-ui-select\" on-select=\"addSelectedUser()\" on-remove=\"onRemove()\" ng-disabled=\"controlDisabled\">" +
 	"<ui-select-match placeholder=\"{{ 'LUIDUSERPICKER_PLACEHOLDER' | translate }}>{{$item.firstName}} {{$item.lastName}} " +
-	"<span ng-if=\"$item.hasHomonyms\" ng-repeat=\"property in displayedProperties\">&lt{{getProperty($item, property)}}&gt</span>" +
+	"<span ng-if=\"$item.hasHomonyms\" ng-repeat=\"property in displayedProperties\">&lt{{getProperty($item, property.name)}}&gt</span>" +
 	"<small ng-if=\"$item.isFormerEmployee\" translate  translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small>" +
 	"</ui-select-match>" +
 	uiSelectChoicesTemplate +
@@ -939,30 +1152,30 @@
 			// require: "luidUserPicker",
 			scope: {
 				/*** STANDARD ***/
-				ngModel: "=",
 				onSelect: "&",
 				onRemove: "&",
 				controlDisabled: "=",
 				/*** FORMER EMPLOYEES ***/
 				showFormerEmployees: "=", // boolean
 				/*** HOMONYMS ***/
-				homonymsProperties: "@", // list of properties to handle homonyms
+				homonymsProperties: "=", // list of properties to handle homonyms
 				/*** CUSTOM FILTER ***/
-				customFilter: "&", // should be a function with this signature: function(user){ return boolean; } 
+				customFilter: "=", // should be a function with this signature: function(user){ return boolean; } 
 				/*** OPERATION SCOPE ***/
-				appId: "@",
-				operation: "@"
+				appId: "=", // id of the application that users should have access
+				operations: "=", // list of operation ids that users should have access
+				/*** CUSTOM COUNT ***/
+				// Display a custom info in a label next to each user
+				// You should only set one of these two attributes, otherwise it will only be 'customInfoAsync' that will be displayed
+				// If you need to use a sync and an async functions, use 'customInfoAsync'
+				customInfo: "=", // should be a function with this signature: function(user) { return string; }
+				customInfoAsync: "=" // should be a function with this signature: function(user) { return promise; }
 			},
 			link: function (scope, elt, attrs, ctrl) {
-				if (attrs.homonymsProperties) {
-					scope.properties = attrs.homonymsProperties.split(',');
-				}
-				else {
-					scope.properties = DEFAULT_HOMONYMS_PROPERTIES;
-				}
 				ctrl.isMultipleSelect = false;
 				ctrl.asyncPagination = false;
 				ctrl.useCustomFilter = !!attrs.customFilter;
+				ctrl.displayCustomInfo = !!attrs.customInfo || !!attrs.customInfoAsync;
 			}
 		};
 	})
@@ -987,7 +1200,7 @@
 	// 			customFilter: "&", // should be a function with this signature: function(user){ return boolean; } 
 	// 			/*** OPERATION SCOPE ***/
 	// 			appId: "@",
-	// 			operation: "@"
+	// 			operations: "@"
 	// 		},
 	// 		link: function (scope, elt, attrs, ctrl) {
 	// 			if (attrs.homonymsProperties) {
@@ -1058,6 +1271,10 @@
 								function(message) {
 									errorHandler("GET_HOMONYMS_PROPERTIES", message);
 								});
+						}
+
+						if (ctrl.displayCustomInfo) {
+							addInfoToUsers();
 						}
 					}
 					else {
@@ -1138,8 +1355,17 @@
 			var formerEmployees = "formerEmployees=" + ($scope.showFormerEmployees ? "true" : "false");
 			var limit = "&limit=" + getLimit();
 			var clue = "clue=" + input;
+			var operations = "";
+			var appInstanceId = "";
 			var query = "/api/v3/users/find?" + (input ? (clue + "&") : "") + formerEmployees + limit;
 			var deferred = $q.defer();
+
+			// Both attributes should be defined
+			if ($scope.appId && $scope.operations && $scope.operations.length) {
+				appInstanceId = "&appinstanceid=" + $scope.appId;
+				operations = "&operations=" + $scope.operations.join(',');
+			}
+			query += (appInstanceId + operations);
 
 			getUsersPromise = $http.get(query);
 			getUsersPromise
@@ -1249,9 +1475,17 @@
 			var deferred = $q.defer();
 			var propertiesArray; // Will contain each couple of properties to compare
 			var properties; // Object containing the couple of properties to compare
+			var emergencyProperty; // used if NO couple of differentiating properties are found. In this case, only one property will be displayed
+			var props; // List of properties that will be fetched in case of homonyms
 			$scope.displayedProperties = []; // Will contain the name of the properties to display for homonyms
 
-			getHomonymsPropertiesAsync(homonyms).then(
+			// Define properties to fetch for homonyms
+			if (!!$scope.homonymsProperties && $scope.homonymsProperties.length) {
+				props = $scope.homonymsProperties;
+			} else {
+				props = DEFAULT_HOMONYMS_PROPERTIES;
+			}
+			getHomonymsPropertiesAsync(homonyms, props).then(
 				function(homonymsArray) {
 					// Add fetched properties to the homonyms
 					_.each(homonyms, function(user) {
@@ -1261,47 +1495,53 @@
 						});
 
 						// Add each property to the user
-						_.each($scope.properties, function(prop) {
-							var newProp = prop.split('.')[0];
+						_.each(props, function(prop) {
+							var newProp = prop.name.split('.')[0];
 							user[newProp] = userWithProps[newProp];
 						});
 					});
 
 					// Compare properties between homonyms
-					_.each($scope.properties, function (prop1, propIndex1) {
+					_.each(props, function (prop1, propIndex1) {
 						if (!found) {
 							// Compare prop1 with the rest of the properties array
-							var propRest = _.rest($scope.properties, propIndex1 + 1);
+							var propRest = _.rest(props, propIndex1 + 1);
 							_.each(propRest, function (prop2, index) {
 								if (!found) {
 									// Build array with the two properties
 									// Each element of the array is an object with the properties that we want to compare
 									propertiesArray = [];
 									_.each(homonymsArray, function(item) {
-										var valueProp1 = $scope.getProperty(item, prop1);
-										var valueProp2 = $scope.getProperty(item, prop2);
+										var valueProp1 = $scope.getProperty(item, prop1.name);
+										var valueProp2 = $scope.getProperty(item, prop2.name);
 										properties = {};
-										properties[prop1] = valueProp1;
-										properties[prop2] = valueProp2;
+										properties[prop1.name] = valueProp1;
+										properties[prop2.name] = valueProp2;
 										propertiesArray.push(properties);
 									});
 
 									// Used to check that all values for prop1 are not equal
 									var prop1Values = _.chain(propertiesArray)
-										.pluck(prop1)
+										.pluck(prop1.name)
 										.uniq()
 										.value();
 									// Used to check that all values for prop2 are not equal
 									var prop2Values = _.chain(propertiesArray)
-										.pluck(prop2)
+										.pluck(prop2.name)
 										.uniq()
 										.value();
+
+									// prop1 is a differentiating property: each homonym has a different value for this property
+									// if we do not find a couple of differentiating properties, we will at least display this one
+									if ((!emergencyProperty) && (prop1Values.length === homonyms.length)) {
+										emergencyProperty = prop1;
+									}
 
 									// All values for both properties must not be equal
 									// There must be at least two different values
 									if ((prop1Values.length > 1) && (prop2Values.length > 1)) {
 										// Check that each couple of values is different from the other couples
-										var withoutDuplicates = _.uniq(propertiesArray, function(item) { return (item[prop1] + item[prop2]); });
+										var withoutDuplicates = _.uniq(propertiesArray, function(item) { return (item[prop1.name] + item[prop2.name]); });
 										// If the arrays have the same length, each couple of values is different
 										if (withoutDuplicates.length === propertiesArray.length) {
 											found = true;
@@ -1314,7 +1554,10 @@
 						}
 					});
 
-					// TODO: handle if no couple of properties allows to differentiate users
+					// If no couple of properties are differentiating, we will display the first differentiating property (values are different for all homonyms)
+					if (!found && emergencyProperty) {
+						$scope.displayedProperties.push(emergencyProperty);
+					}
 					deferred.resolve(users);
 				},
 				function(message) {
@@ -1341,7 +1584,7 @@
 		/***** HOMONYMS PROPERTIES *****/
 		/*******************************/
 
-		var getHomonymsPropertiesAsync = function(homonyms) {
+		var getHomonymsPropertiesAsync = function(homonyms, properties) {
 			var urlCalls = [];
 			var query = "/api/v3/users?id=";
 			var fields = "&fields=id,firstname,lastname";
@@ -1349,8 +1592,8 @@
 
 			// WARNING: Do not check if the properties exist!
 			// WARNING: If they do not exist, the request will fail
-			_.each($scope.properties, function(prop) {
-				fields += "," + prop;
+			_.each(properties, function(prop) {
+				fields += "," + prop.name;
 			});
 
 			_.each(homonyms, function(user) {
@@ -1408,6 +1651,33 @@
 			});
 		};
 
+		/***********************/
+		/***** CUSTOM INFO *****/
+		/***********************/
+
+		var addInfoToUsers = function() {
+			if ($scope.customInfo) {
+				_.each($scope.users, function(user) {
+					// We do not want customInfo to be called with overflow message
+					if (($scope.users.length < 6) || (user !== _.last($scope.users))) {
+						user.info = $scope.customInfo(angular.copy(user));
+					}
+				});
+			}
+			if ($scope.customInfoAsync) {
+				_.each($scope.users, function(user) {
+					// We do not want customInfoAsync to be called with overflow message
+					if (($scope.users.length < 6) || (user !== _.last($scope.users))) {
+						$scope.customInfoAsync(angular.copy(user)).then(function(info) {
+							user.info = info;
+						}, function(message) {
+							errorHandler("GET_CUSTOM_INFO", message);
+						});
+					}
+				});
+			}
+		};
+
 		/*********************/
 		/***** ON-SELECT *****/
 		/*********************/
@@ -1444,9 +1714,18 @@
 					break;
 				case "GET_COUNT": // error while trying to get the total number of users matching the query
 				case "GET_HOMONYMS_PROPERTIES":  // error while trying to get the distinctive properties for homonyms
+				case "GET_CUSTOM_INFO":
 					console.log({cause:cause, message:message});
 					break;
 			}
+		};
+	}])
+
+	// Filter to display custom info next to each user
+	// Highlight the search in the name of the user and display a label next to each user
+	.filter('luifHighlight', ['$filter', function($filter) {
+		return function(_input, _clue, _info) {
+			return $filter('highlight')(_input, _clue) + (!!_info ? "<span class=\"lui label\">" + _info + "</span>" : "");
 		};
 	}]);
 	
@@ -1460,6 +1739,10 @@
 			"LUIDUSERPICKER_ERR_GET_USERS":"Error while loading users",
 			"LUIDUSERPICKER_OVERFLOW":"{{cnt}} displayed results of {{all}}",
 			"LUIDUSERPICKER_PLACEHOLDER":"Type a last name or first name...",
+			"LUIDUSERPICKER_DEPARTMENT":"Department",
+			"LUIDUSERPICKER_LEGALENTITY":"Legal entity",
+			"LUIDUSERPICKER_EMPLOYEENUMBER":"Employee number",
+			"LUIDUSERPICKER_MAIL":"Email"
 		});
 		$translateProvider.translations('de', {
 
@@ -1470,9 +1753,13 @@
 		$translateProvider.translations('fr', {
 			"LUIDUSERPICKER_FORMEREMPLOYEE":"Parti(e) le {{dtContractEnd | luifMoment : 'LL'}}",
 			"LUIDUSERPICKER_NORESULTS":"Aucun résultat",
-			"LUIDUSERPICKER_ERR_GET_USERS":"Erruer lors de la récupération des utilisateurs",
+			"LUIDUSERPICKER_ERR_GET_USERS":"Erreur lors de la récupération des utilisateurs",
 			"LUIDUSERPICKER_OVERFLOW":"{{cnt}} résultats affichés sur {{all}}",
 			"LUIDUSERPICKER_PLACEHOLDER":"Saisissez un nom, prénom...",
+			"LUIDUSERPICKER_DEPARTMENT":"Service",
+			"LUIDUSERPICKER_LEGALENTITY":"Entité légale",
+			"LUIDUSERPICKER_EMPLOYEENUMBER":"Matricule",
+			"LUIDUSERPICKER_MAIL":"Email"
 		});
 		$translateProvider.translations('it', {
 
