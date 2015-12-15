@@ -3,14 +3,15 @@
 	angular.module('moment', []).factory('moment', function () { return window.moment; });
 	angular.module('underscore', []).factory('_', function () { return window._; });
 	
-	angular.module('lui.directives', ['moment', 'underscore', 'ui.select', 'ui.bootstrap']);
+	angular.module('lui.directives', ['pascalprecht.translate', 'moment', 'underscore', 'ui.select', 'ui.bootstrap']);
 	angular.module('lui.filters', ['moment']);
 	angular.module('lui.services', []);
 
 	// all the templates in one module
 	angular.module('lui.templates.momentpicker', []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
 	angular.module("lui.templates.daterangepicker", []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
-	angular.module('lui.templates', ['lui.templates.momentpicker', "lui.templates.daterangepicker"]);
+	angular.module("lui.templates.translationsinput", []); // module defined here and used in a different file so every page doesnt have to reference the right .js file
+	angular.module('lui.templates', ['lui.templates.momentpicker', "lui.templates.daterangepicker", "lui.templates.translationsinput"]);
 	
 	// all the translations in one module
 	angular.module('lui.translates.userpicker', []);
@@ -38,11 +39,11 @@
 			scope.hasPeriods = !!attrs.periods;
 
 			ngModelCtrl.$render = function(){
-				if(!ngModelCtrl.$viewValue){ 
+				if(!ngModelCtrl.$viewValue){
 					scope.internal.startsOn = undefined;
 					scope.internal.endsOn = undefined;
 					scope.internal.strFriendly = undefined;
-					return; 
+					return;
 				}
 
 				var parsed = parse(ngModelCtrl.$viewValue);
@@ -52,7 +53,7 @@
 			};
 			scope.$watch(function($scope){ return ngModelCtrl.$viewValue[$scope.startProperty || "startsOn"]; }, function(){ ngModelCtrl.$render(); });
 			scope.$watch(function($scope){ return ngModelCtrl.$viewValue[$scope.endProperty || "endsOn"]; }, function(){ ngModelCtrl.$render(); });
-			
+
 			drCtrl.updateValue = function(startsOn, endsOn){
 				var newValue = ngModelCtrl.$viewValue;
 				var formatted = format(startsOn,endsOn);
@@ -132,6 +133,9 @@
 				excludeEnd:'=', // user will see "oct 1st - 31st" and the $viewvalue will be "oct 1st - nov 1st"
 
 				periods:'=', // an array like that [{label:'this month', startsOn:<Date or moment or string parsable by moment>, endsOn:idem}, {...}]
+
+				closeLabel: '@',
+				closeAction:'&',
 			},
 			templateUrl:"lui/directives/luidDaterange.html",
 			restrict:'EA',
@@ -168,6 +172,12 @@
 				ctrl.pinPopover();
 			}else{
 				ctrl.unpinPopover();
+			}
+		};
+		$scope.doCloseAction = function(){
+			$scope.togglePopover();
+			if(!!$scope.closeAction){
+				$scope.closeAction();
 			}
 		};
 		$scope.clickInside = function(e){
@@ -209,12 +219,12 @@
 			"	<div class=\"lui vertical pills shortcuts menu\">" +
 			"		<a class='lui item' ng-repeat='period in periods' ng-click='goToPeriod(period)'>{{period.label}}</a>" +
 			"	</div>" +
-			"	<uib-datepicker ng-if='hackRefresh' class='lui datepicker' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
-			"	<uib-datepicker ng-if='hackRefresh' class='lui datepicker' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
-			"	<uib-datepicker ng-if='!hackRefresh' class='lui datepicker' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
-			"	<uib-datepicker ng-if='!hackRefresh' class='lui datepicker' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
+			"	<uib-datepicker ng-if='hackRefresh' class='lui datepicker start-date' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
+			"	<uib-datepicker ng-if='hackRefresh' class='lui datepicker end-date' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
+			"	<uib-datepicker ng-if='!hackRefresh' class='lui datepicker start-date' ng-model='internal.startsOn' show-weeks='false' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
+			"	<uib-datepicker ng-if='!hackRefresh' class='lui datepicker end-date' ng-model='internal.endsOn' show-weeks='false' min-date='internal.startsOn' custom-class='dayClass(date, mode)' ng-change='internalUpdated()'></uib-datepicker>" +
 			"	<hr>" +
-			"	<a class='lui right pulled primary button' ng-click='togglePopover()'>Ok</a>" +
+			"	<a class='lui right pulled primary button' ng-click='doCloseAction()'>{{closeLabel || 'Ok'}}</a>" +
 			"</div>" +
 			"");
 	}]);
@@ -1157,6 +1167,183 @@
 			'	</ui-select-choices>' + 
 			'</ui-select>'
 		};
+	}]);
+})();
+;(function(){
+	'use strict';
+		/**
+	** DEPENDENCIES
+	**  - angular translate
+	**  - underscore
+	**/
+
+	angular.module('lui.directives')
+	.directive('luidTranslations', ['$translate', '_', '$filter', '$timeout', function($translate, _, $filter,  $timeout){
+		function link(scope, element, attrs, ctrls){
+			var ngModelCtrl = ctrls[1];
+			var translateCtrl = ctrls[0];
+
+			var cultures = ['en', 'de', 'es', 'fr', 'it', 'nl'];
+			scope.cultures = cultures;
+			// need the current culture to
+			var currentCulture = $translate.preferredLanguage() || "en";
+			scope.currentCulture = currentCulture;
+
+			// default mode is dictionary
+			var mode = 'dictionary';
+			if(!!attrs.mode){
+				mode = scope.mode;
+			}
+			if(mode === 'dictionary' && ngModelCtrl.$viewValue !== undefined){
+				_.each(cultures, function(c){
+					scope.$watch(function(){ return ngModelCtrl.$viewValue[c]; }, function(){ ngModelCtrl.$render(); });
+				});
+			}
+
+			ngModelCtrl.$render = function(){
+				scope.internal = parse(ngModelCtrl.$viewValue);
+			};
+			translateCtrl.updateViewValue = function(){
+				switch(mode){
+					case "dictionary":
+						return updateDictionary(scope.internal);
+					case "|":
+					case "pipe":
+						return updatePipe(scope.internal);
+					case "[]":
+					case "brackets":
+						return updateBrackets(scope.internal);
+				}
+			};
+
+			var parse = function(value){
+				switch(mode){
+					case "dictionary":
+						return parseDictionary(value);
+					case "|":
+					case "pipe":
+						return parsePipe(value);
+					case "[]":
+					case "brackets":
+						return parseBrackets(value);
+					default:
+						return {};
+				}
+			};
+
+			// mode dictionary
+			var parseDictionary = function(value){
+				return _.reduce(cultures, function(memo, c){
+					memo[c] = value[c];
+					return memo;
+				}, {});
+			};
+			var updateDictionary = function(value){
+				_.each(cultures, function(c){
+					ngModelCtrl.$viewValue[c] = value[c];
+				});
+				ngModelCtrl.$setViewValue(ngModelCtrl.$viewValue);
+				scope.$parent.$eval(attrs.ngChange); // needs to be called manually cuz the object ref of the $viewValue didn't change
+			};
+
+			// mode pipe
+			var parsePipe = function(value){
+				if(!value){
+					return {};
+				}
+				// value looks like this "en:some stuff|de:|nl:|fr:des bidules|it:|es:"
+				var translations = value.split("|");
+				var result = {};
+				_.each(translations, function(t){
+					var key = t.substring(0,2);
+					var val = t.substring(3);
+					result[key] = val;
+				});
+				return _.pick(result, cultures);
+			};
+			var updatePipe = function(value){
+				var newVal = _.map(cultures, function(c){
+					if(!!value[c]){
+						return c + ":" + value[c];
+					}
+					return c + ":";
+				}).join("|");
+				ngModelCtrl.$setViewValue(newVal);
+			};
+
+			// mode brackets
+			var parseBrackets = function(value){
+				return {};
+			};
+
+		}
+		return{
+			require:['luidTranslations','^ngModel'],
+			controller:'luidTranslationsController',
+			scope: {
+				// disabled:'=',
+
+				mode:'@', // allowed values: "|" "pipe", "[]" "brackets", "dictionary"
+
+				size:"@", // the size of the input (short, long, x-long, fitting)
+			},
+			templateUrl:"lui/directives/luidTranslations.html",
+			restrict:'EA',
+			replace:true,
+			link:link
+		};
+	}])
+	.controller('luidTranslationsController', ['$scope', '$translate', '$timeout', function($scope, $filter, $timeout){
+		var ctrl = this;
+		/******************
+		* UPDATE          *
+		******************/
+		$scope.update = function(){
+			ctrl.updateViewValue();
+		};
+
+
+		/******************
+		* FOCUS & BLUR    *
+		******************/
+		var blurTimeout;
+		$scope.focusInput = function(){
+			if(!!blurTimeout){
+				$timeout.cancel(blurTimeout);
+				blurTimeout = undefined;
+			}
+			$scope.focused = true;
+		};
+		$scope.blurInput = function(){
+			blurTimeout = $timeout(function(){
+				$scope.focused = false;
+			}, 500);
+		};
+
+	}]);
+
+
+	/**************************/
+	/***** TEMPLATEs      *****/
+	/**************************/
+	angular.module("lui.templates.translationsinput").run(["$templateCache", function($templateCache) {
+		$templateCache.put("lui/directives/luidTranslations.html",
+			"<div class=\"luid-translations {{size}}\" ng-class=\"{open:focused || hovered}\" ng-mouseenter=\"hovered=true\" ng-mouseleave=\"hovered=false\">" +
+			"	<div class=\"lui {{size}} input with addon\">" +
+			"		<input type=\"text\" ng-model=\"internal[currentCulture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-change=\"update()\">" +
+			"		<span class=\"lui right addon\">{{currentCulture}}</span>" +
+			"	</div>" +
+			"	<div class=\"lui luid-translations-dropdown\">" +
+			"		<div class=\"lui {{size}} input with addon\" ng-repeat=\"culture in cultures\" ng-if=\"culture !== currentCulture\">" +
+			"			<input type=\"text\" ng-model=\"internal[culture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-change=\"update()\">" +
+			"			<span class=\"lui right addon\">{{culture}}</span>" +
+			"		</div>" +
+			// "		<hr>" +
+			// "		<div class=\"lui button right pulled\" ng-click=\"close()\">Ok</div>" +
+			"	</div>" +
+			"</div>" +
+		"");
+
 	}]);
 })();
 ;(function(){
@@ -2122,7 +2309,7 @@
 		};
 	})
 	// this filter is very ugly and i'm sorry - i'll add lots of comments
-	.filter('luifDuration', function () {
+	.filter('luifDuration', ['$filter', function ($filter) {
 		return function (_duration, _sign, _unit, _precision) {  //expects a duration, returns the duration in the given unit with the given precision
 			var d = moment.duration(_duration);
 
@@ -2140,9 +2327,22 @@
 				case 'days':
 					_precision = !!_precision ? _precision : 'h'; // if no precision is provided, we take the next unit
 
-					// the first unit with a not nul member, if you want 15 minutes expressed in days it will respond 15m
-					unit = values[0] !== 0 ? 0 : values[1] !== 0 ? 1 : values[2] !== 0 ? 2 : values[3] !== 0 ? 3 : 4;
-					values[0] = Math.abs(d.asDays() >= 0 ? Math.floor(d.asDays()) : Math.ceil(d.asDays()));
+					if ((_precision === 'd' || _precision === 'day' || _precision === 'days') && d.asDays() > 0) {
+						unit = 0;
+						// Determine the number of decimals to display
+						var decimals = 2;
+						var days = d.asDays();
+						if ((days * 10) % 10 === 0) {
+							decimals = 0;
+						} else if ((days * 100) % 10 === 0) {
+							decimals = 1;
+						}
+						values[0] = $filter("number")(days, decimals);
+					} else {
+						// the first unit with a not nul member, if you want 15 minutes expressed in days it will respond 15m
+						unit = values[0] !== 0 ? 0 : values[1] !== 0 ? 1 : values[2] !== 0 ? 2 : values[3] !== 0 ? 3 : 4;
+						values[0] = Math.abs(d.asDays() >= 0 ? Math.floor(d.asDays()) : Math.ceil(d.asDays()));
+					}
 					break;
 				case undefined:
 				case '': // if no _unit is provided, use hour
@@ -2150,7 +2350,7 @@
 				case 'hour':
 				case 'hours':
 					_precision = _precision || 'm';
-					unit = values[1] !== 0 ? 1 : values[2] !== 0 ? 2 : values[3] !== 0 ? 3 : 4; // the first unit with a not nul member
+					unit = (values[0] !== 0 || values[1] !== 0) ? 1 : values[2] !== 0 ? 2 : values[3] !== 0 ? 3 : 4; // the first unit with a not nul member
 					values[1] = Math.abs(d.asHours() >= 0 ? Math.floor(d.asHours()) : Math.ceil(d.asHours()));
 					break;
 				case 'm':
@@ -2159,7 +2359,7 @@
 				case 'minute':
 				case 'minutes':
 					_precision = _precision || 's';
-					unit = values[2] !== 0 ? 2 : values[3] !== 0 ? 3 : 4; // the first unit with a not nul member
+					unit = (values[0] !== 0 || values[1] !== 0 || values[2] !== 0) ? 2 : values[3] !== 0 ? 3 : 4; // the first unit with a not nul member
 					values[2] = Math.abs(d.asMinutes() >= 0 ? Math.floor(d.asMinutes()) : Math.ceil(d.asMinutes()));
 					break;
 				case 's':
@@ -2167,7 +2367,7 @@
 				case 'second':
 				case 'seconds':
 					_precision = _precision || 's';
-					unit = values[3] !== 0 ? 3 : 4; // the first unit with a not nul member
+					unit = (values[0] !== 0 || values[1] !== 0 || values[2] !== 0 || values[3] !== 0) ? 3 : 4; // the first unit with a not nul member
 					values[3] = Math.abs(d.asSeconds() >= 0 ? Math.floor(d.asSeconds()) : Math.ceil(d.asSeconds()));
 					break;
 				case 'ms':
@@ -2250,7 +2450,7 @@
 
 			return prefix + result;
 		};
-	})
+	}])
 	.filter('luifHumanize', function () {
 		return function (_duration, suffix) {
 			suffix = !!suffix;
