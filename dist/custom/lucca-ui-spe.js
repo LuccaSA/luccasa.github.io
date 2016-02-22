@@ -979,6 +979,7 @@
 		};
 	}])
 	.controller('luidTimespanController', ['$scope', 'moment', function ($scope, moment) {
+		var ctrl = this;
 
 		function parse(strInput) {
 			// parsing str to moment.duration
@@ -1036,7 +1037,7 @@
 			$scope.ngModelCtrl.$render();
 		}
 
-		function updateWithoutRender(newDuration, mode) {
+		function updateWithoutRender(newDuration) {
 			// Handle min/max values
 			function correctValue(newValue){
 				function correctedMinValue(newValue) {
@@ -1052,8 +1053,8 @@
 				return correctedMaxValue(correctedMinValue(newValue));
 			}
 
-			function format(dur, mode) {
-				if (mode === 'timespan') {
+			function format(dur) {
+				if (ctrl.mode === 'timespan') {
 					var timespan = "";
 					if (dur.asMilliseconds() < 0){
 						timespan += "-";
@@ -1071,7 +1072,7 @@
 
 			// Check min/max values
 			newDuration = correctValue(newDuration);
-			var formattedValue = format(newDuration, mode);
+			var formattedValue = format(newDuration);
 
 			$scope.ngModelCtrl.$setViewValue(formattedValue);
 		}
@@ -1079,8 +1080,6 @@
 		function currentValue() {
 			return $scope.ngModelCtrl.$viewValue;
 		}
-
-		var ctrl = this;
 
 		// events - key 'enter'
 		this.setupEvents = function (elt) {
@@ -1135,14 +1134,14 @@
 			// is only fired when pattern is valid or when it goes from valid to invalid
 			// improvement possible - check the pattern and set the validity of the all directive via ngModelCtrl.$setValidity
 			// currently when pattern invalid, the viewValue is set to '00:00:00'
-			if (!$scope.strDuration) { return updateWithoutRender(undefined, ctrl.mode); } // empty input => 00:00:00
+			if (!$scope.strDuration) { return updateWithoutRender(undefined); } // empty input => 00:00:00
 
 			// parse the strDuration to build newDuration
 			// the duration of the parsed strDuration
 			var newDuration = parse($scope.strDuration);
 
 			// update viewvalue
-			updateWithoutRender(newDuration, ctrl.mode);
+			updateWithoutRender(newDuration);
 		};
 
 		// display stuff
@@ -1429,7 +1428,7 @@
 				/*** HOMONYMS ***/
 				homonymsProperties: "=", // list of properties to handle homonyms
 				/*** CUSTOM FILTER ***/
-				customFilter: "=", // should be a function with this signature: function(user){ return boolean; } 
+				customFilter: "=", // should be a function with this signature: function(user){ return boolean; }
 				/*** OPERATION SCOPE ***/
 				appId: "=", // id of the application that users should have access
 				operations: "=", // list of operation ids that users should have access
@@ -1491,7 +1490,7 @@
 				/*** HOMONYMS ***/
 				homonymsProperties: "=", // list of properties to handle homonyms
 				/*** CUSTOM FILTER ***/
-				customFilter: "=", // should be a function with this signature: function(user){ return boolean; } 
+				customFilter: "=", // should be a function with this signature: function(user){ return boolean; }
 				/*** OPERATION SCOPE ***/
 				appId: "=", // id of the application that users should have access
 				operations: "=", // list of operation ids that users should have access
@@ -1699,7 +1698,7 @@
 		// 	// Only select the X first users and display a message to the user to indicate that there are more results
 		// 	handlePagination(users);
 
-		// 	// launch new timeout 
+		// 	// launch new timeout
 		// 	timeout.count = $timeout(function() {
 		// 		getCountAsync(input).then(
 		// 			function(count) {
@@ -1745,7 +1744,7 @@
 			// Should latinise names and take into account composite names
 			var usersWithoutHomonyms = _.uniq(users, function(user) {
 				if (user.firstName && user.lastName) {
-					return (user.firstName.toLowerCase() + user.lastName.toLowerCase()); 
+					return (user.firstName.toLowerCase() + user.lastName.toLowerCase());
 				}
 			});
 			if (usersWithoutHomonyms.length < users.length) {
@@ -2119,7 +2118,7 @@
 			return (!!_key ? "<i>" + $translate.instant(_key) + "</i> " : "") + $filter('highlight')(_input, _clue) + (!!_info ? "<span class=\"lui label\">" + _info + "</span>" : "");
 		};
 	}]);
-	
+
 	/**************************/
 	/***** TRANSLATIONS   *****/
 	/**************************/
@@ -2139,7 +2138,18 @@
 			"LUIDUSERPICKER_ALL":"All users",
 		});
 		$translateProvider.translations('de', {
-
+			"LUIDUSERPICKER_FORMEREMPLOYEE":"Verließ die {{dtContractEnd | luifMoment : 'LL'}}",
+			"LUIDUSERPICKER_NORESULTS":"Keine Ergebnisse",
+			"LUIDUSERPICKER_ERR_GET_USERS":"Fehler",
+			"LUIDUSERPICKER_OVERFLOW":"Es werden {{cnt}} auf {{all}} Benutzernamen",
+			"LUIDUSERPICKER_PLACEHOLDER":"Geben Sie einen Benutzernamen...",
+			"LUIDUSERPICKER_DEPARTMENT":"Abteilung",
+			"LUIDUSERPICKER_LEGALENTITY":"Rechtsträger",
+			"LUIDUSERPICKER_EMPLOYEENUMBER":"Betriebsnummer",
+			"LUIDUSERPICKER_MAIL":"E-mail",
+			"LUIDUSERPICKER_SELECTED":"Ausgewählt:",
+			"LUIDUSERPICKER_ME":"Mir:",
+			"LUIDUSERPICKER_ALL":"Alle Benutzer",
 		});
 		$translateProvider.translations('es', {
 
@@ -2166,7 +2176,6 @@
 		});
 	}]);
 })();
-
 ;(function(){
 	'use strict';
 	/**
@@ -2242,46 +2251,48 @@
 
 	angular.module('lui.filters')
 	.filter('luifFriendlyRange', function () {
-		var traductions = {
+		var translations = {
 			'en': {
 				sameDay: 'start(dddd, LL)',
+				sameDayThisYear: 'start(dddd, MMMM Do)',
 				sameMonth: 'start(MMMM Do) - end(Do\, YYYY)',
+				sameMonthThisYear: 'start(MMMM Do) - end(Do)',
 				sameYear: 'start(MMMM Do) - end(LL)',
+				sameYearThisYear: 'start(MMMM Do) - end(MMMM Do)',
 				other: 'start(LL) - end(LL)'
 			},
 			'fr': {
 				sameDay: 'le start(dddd LL)',
+				sameDayThisYear: 'le start(dddd Do MMMM)',
 				sameMonth: 'du start(Do) au end(LL)',
+				sameMonthThisYear: 'du start(Do) au end(Do MMMM)',
 				sameYear: 'du start(Do MMMM) au end(LL)',
+				sameYearThisYear: 'du start(Do MMMM) au end(Do MMMM)',
 				other: 'du start(LL) au end(LL)'
-			}
-		};
-		var currentYearTraductions = {
-			'en': {
-				sameDay: 'start(dddd, MMMM Do)',
-				sameMonth: 'start(MMMM Do) - end(Do)',
-				sameYear: 'start(MMMM Do) - end(MMMM Do)',
-				other: 'start(LL) - end(LL)'
 			},
-			'fr': {
-				sameDay: 'le start(dddd Do MMMM)',
-				sameMonth: 'du start(Do) au end(Do MMMM)',
-				sameYear: 'du start(Do MMMM) au end(Do MMMM)',
-				other: 'du start(LL) au end(LL)'
+			'de': {
+				sameDay: 'der start(dddd LL)',
+				sameDayThisYear: 'der start(dddd Do MMMM)',
+				sameMonth: 'von start(Do) bis end(LL)',
+				sameMonthThisYear: 'von start(Do) bis end(Do MMMM)',
+				sameYear: 'von start(Do MMMM) bis end(LL)',
+				sameYearThisYear: 'von start(Do MMMM) bis end(Do MMMM)',
+				other: 'von start(LL) bis end(LL)'
 			}
 		};
-		return function (_block, _excludeEnd) {
+		return function (_block, _excludeEnd, _ampm, _translations) {
 			if(!_block){ return; }
 			var start = moment(_block.startsAt || _block.startsOn || _block.startDate || _block.start);
 			var end = moment(_block.endsAt || _block.endsOn || _block.endDate || _block.end);
 			if(_excludeEnd){
-				end.add(-1,'d');
+				end.add(-1,'minutes');
 			}
-			var trads = traductions[moment.locale()] || traductions.en;
-			if(moment().year() === start.year() && moment().year() === end.year()){
-				trads = currentYearTraductions[moment.locale()] || currentYearTraductions.en;
-			}
+			var trads = translations[moment.locale()] || traductions.en;
 			var format = start.year() === end.year() ? start.month() === end.month() ? start.date() === end.date() ? 'sameDay' : 'sameMonth' : 'sameYear' : 'other';
+			if(moment().year() === start.year() && moment().year() === end.year()){
+				format += "ThisYear";
+			}
+
 			var regex = /(start\((.*?)\))(.*(end\((.*?)\))){0,1}/gi.exec(trads[format]);
 			return trads[format].replace(regex[1], start.format(regex[2])).replace(regex[4], end.format(regex[5]));
 		};
@@ -2301,7 +2312,7 @@
 		};
 	})
 	.filter('luifDuration', ['$filter', function ($filter) {
-		//expects a duration, returns the duration in the given unit with the given precision			
+		//expects a duration, returns the duration in the given unit with the given precision
 		return function (_duration, _sign, _unit, _precision) {
 			function getConfigIndex(expectedUnit){
 				switch(expectedUnit){
@@ -2309,7 +2320,7 @@
 					case 'day':
 					case 'days': return 0;
 					case undefined:
-					case '': 
+					case '':
 					case 'h':
 					case 'hour':
 					case 'hours': return 1;// default
@@ -2357,7 +2368,7 @@
 
 			function getPrefix(sign, duration){
 				if (sign) {
-					if (duration.asMilliseconds() > 0) { return '+'; } 
+					if (duration.asMilliseconds() > 0) { return '+'; }
 					else if (duration.asMilliseconds() < 0) { return '-'; }
 				}
 				return '';
@@ -2446,4 +2457,5 @@
 			return d.humanize(suffix);
 		};
 	});
-})();;
+})();
+;
