@@ -1,4 +1,8 @@
-declare module Lui {
+declare module lui {
+}
+declare module lui.cloak {
+}
+declare module lui {
     interface IConfig {
         parentTagIdClass?: string;
         parentElt?: ng.IAugmentedJQuery;
@@ -10,13 +14,13 @@ declare module Lui {
         cropLabel?: string;
         noCropLabel?: string;
     }
-}
-declare module Lui.Service {
     interface IConfigProvider {
         setConfig(config: IConfig): void;
     }
 }
-declare module Lui.Directives {
+declare module lui.config {
+}
+declare module lui.datepicker {
     class CalendarDate {
         date: moment.Moment;
         disabled: boolean;
@@ -76,9 +80,10 @@ declare module Lui.Directives {
     interface ICalendarValidators extends ng.IModelValidators {
         min: (modelValue: any, viewValue: any) => boolean;
         max: (modelValue: any, viewValue: any) => boolean;
+        customClass?: (modelValue: any, viewValue: any) => boolean;
     }
 }
-declare module Lui.Directives {
+declare module lui.datepicker {
     abstract class CalendarController {
         protected calendarCnt: number;
         protected currentDate: moment.Moment;
@@ -111,12 +116,12 @@ declare module Lui.Directives {
         private changeCurrentDate(offset);
     }
 }
-declare module Lui.Directives {
+declare module lui.datepicker {
 }
-declare module Lui.Directives {
+declare module lui.datepicker {
 }
-declare module Lui {
-    interface ILuiFilters extends ng.IFilterService {
+declare module lui {
+    interface IFilterService extends ng.IFilterService {
         (name: "luifDuration"): (input: any, showSign?: boolean, unit?: string, precision?: string) => string;
         (name: "luifPlaceholder"): (input: any, placeholder: string) => string;
         (name: "luifFriendlyRange"): (input: IPeriod, excludeEnd?: boolean) => string;
@@ -134,27 +139,28 @@ declare module Lui {
     class Period implements IPeriod {
         start: moment.Moment;
         end: moment.Moment;
-        constructor(unformatted: IPeriod, formatter?: Lui.Utils.IFormatter<moment.Moment>);
+        constructor(unformatted: IPeriod, formatter?: IFormatter<moment.Moment>);
     }
 }
 declare module Lui.Filters {
 }
 declare module Lui {
 }
-declare module Lui {
-    interface IField extends AngularFormly.IFieldConfigurationObject {
+declare module lui {
+    interface IField {
         key: string;
         type: string;
         className?: string;
         templateOptions?: ITemplateOptions;
     }
-    interface ITemplateOptions extends AngularFormly.ITemplateOptions {
+    interface ITemplateOptions {
         label?: string;
         helper?: string;
         required?: boolean;
         disabled?: boolean;
         display?: string;
-        placeholder?: string;
+        placeholder?: number | string;
+        style?: string;
         requiredError?: string;
         emailError?: string;
         ibanError?: string;
@@ -166,9 +172,25 @@ declare module Lui {
         filter?: string;
     }
 }
-declare module dir.directives {
+declare module lui.apiselect {
 }
-declare module Lui.Directives {
+declare module lui.apiselect {
+    interface IStandardApiResource {
+        id: string | number;
+        name: string;
+    }
+    class StandardApiService {
+        static IID: string;
+        static $inject: Array<string>;
+        private $http;
+        constructor($http: angular.IHttpService);
+        get(clue: string, api: string, additionalFilter?: string, paging?: string, order?: string): ng.IPromise<IStandardApiResource[]>;
+    }
+}
+declare module lui.iban {
+    interface IbanChecker {
+        isValid(value: string): boolean;
+    }
     class LuidIbanController {
         static IID: string;
         static $inject: Array<string>;
@@ -177,7 +199,8 @@ declare module Lui.Directives {
         private countryInput;
         private controlInput;
         private bbanInput;
-        constructor($scope: ILuidIbanScope);
+        private ibanChecker;
+        constructor($scope: ILuidIbanScope, iban: IbanChecker);
         setNgModelCtrl(ngModelCtrl: ng.INgModelController): void;
         setInputs(elt: ng.IAugmentedJQuery): void;
         private initScope();
@@ -188,20 +211,21 @@ declare module Lui.Directives {
         private focusControlInput();
     }
 }
-declare module Lui.Directives {
+declare module lui.iban {
     class LuidIban implements ng.IDirective {
         static IID: string;
         restrict: string;
         templateUrl: string;
         require: string[];
         controller: string;
+        scope: {};
         static factory(): angular.IDirectiveFactory;
         link(scope: ILuidIbanScope, element: angular.IAugmentedJQuery, attrs: angular.IAttributes & {
             isRequired: boolean;
         }, ctrls: [LuidIbanController, ng.INgModelController]): void;
     }
 }
-declare module Lui.Directives {
+declare module lui.iban {
     interface ILuidIbanScope extends ng.IScope {
         countryCode: string;
         controlKey: string;
@@ -213,17 +237,17 @@ declare module Lui.Directives {
             [key: number]: ($event: ng.IAngularEvent) => void;
         };
         updateValue(): void;
-        pasteIban(event: ClipboardEvent): void;
+        pasteIban(event: ClipboardEvent | JQueryEventObject): void;
         selectInput(event: JQueryEventObject): void;
         setTouched(): void;
     }
 }
-declare module Lui.Directives {
+declare module lui.iban {
     interface ILuidIbanValidators extends ng.IModelValidators {
         iban: () => boolean;
     }
 }
-declare module Lui.Directives {
+declare module lui.iban {
     class LuidSelectNext implements ng.IDirective {
         static IID: string;
         restrict: string;
@@ -231,14 +255,14 @@ declare module Lui.Directives {
         link(scope: ng.IScope, element: ng.IAugmentedJQuery, attrs: ng.IAttributes): void;
     }
 }
-declare module Lui {
+declare module lui {
     interface IFile {
         id?: string;
         name?: string;
         href: string;
     }
 }
-declare module Lui.Directives {
+declare module lui.imagepicker {
     class LuidImageCropper implements angular.IDirective {
         static IID: string;
         controller: string;
@@ -254,19 +278,22 @@ declare module Lui.Directives {
         link: ng.IDirectiveLinkFn;
     }
 }
-declare module Lui.Directives {
+declare module lui.imagepicker {
 }
-declare module Lui.Directive {
+declare module lui.imagepicker {
 }
-declare module Lui.Service {
-    interface IUploaderService {
-        postFromUrl(url: string): ng.IPromise<Lui.IFile>;
-        postDataURI(dataURI: string): ng.IPromise<Lui.IFile>;
-        postBlob(blob: Blob): ng.IPromise<Lui.IFile>;
+declare module lui {
+    interface INotifyService {
+        error(message: string, details?: string): void;
+        warning(message: string, details?: string): void;
+        success(message: string, details?: string): void;
+        alert(message: string, okLabel?: string, cancelLabel?: string): ng.IPromise<boolean>;
+        confirm(message: string, okLabel?: string, cancelLabel?: string): ng.IPromise<boolean>;
+        loading(loadingPromise: ng.IPromise<string>, message?: string, cancelFn?: () => void): void;
     }
 }
-declare module Lui.Service {
-    class NotifyService {
+declare module lui.notify {
+    class NotifyService implements INotifyService {
         static IID: string;
         static $inject: Array<string>;
         private $q;
@@ -276,7 +303,7 @@ declare module Lui.Service {
         private $uibModal;
         private cgNotify;
         private luisConfig;
-        constructor(notify: any, $q: angular.IQService, $log: ng.ILogService, $rootScope: ng.IRootScopeService, $timeout: ng.ITimeoutService, $uibModal: ng.ui.bootstrap.IModalService, luisConfig: Lui.IConfig);
+        constructor(notify: any, $q: angular.IQService, $log: ng.ILogService, $rootScope: ng.IRootScopeService, $timeout: ng.ITimeoutService, $uibModal: ng.ui.bootstrap.IModalService, luisConfig: IConfig);
         error(message: string, details?: string): void;
         warning(message: string, details?: string): void;
         success(message: string, details?: string): void;
@@ -286,101 +313,60 @@ declare module Lui.Service {
         private openModal(templateUrl, message, okLabel, cancelLabel, preventDismiss);
     }
 }
-declare module Lui.Service {
-    class LuiHttpInterceptor implements angular.IHttpInterceptor {
-        static IID: string;
-        static $inject: Array<string>;
-        totalRequests: number;
-        completedRequests: number;
-        private completeTimeout;
-        private $q;
-        private $cacheFactory;
-        private $timeout;
-        private progressBarService;
-        constructor($q: angular.IQService, $cacheFactory: ng.ICacheFactoryService, $timeout: ng.ITimeoutService, progressBarService: Lui.Service.ProgressBarService);
-        request: (config: ng.IRequestConfig) => ng.IRequestConfig;
-        requestError: (rejection: string) => ng.IPromise<any>;
-        response: (response: ng.IHttpPromiseCallbackArg<any>) => ng.IHttpPromiseCallbackArg<any>;
-        responseError: (rejection: string) => ng.IPromise<any>;
-        private isCached;
-        private extractMethod;
-        private startRequest;
-        private setComplete;
-        private endRequest;
+declare module lui.progressbar {
+}
+declare module lui {
+    interface IProgressBarService {
+        addProgressBar(palette?: string): void;
+        startListening(httpRequestMethods?: string[]): void;
+        stopListening(): void;
+        isListening(): boolean;
+        getHttpRequestMethods(): string[];
+        start(): void;
+        complete(): void;
     }
 }
-declare module Lui.Service {
-    class ProgressBarService {
-        static IID: string;
-        static $inject: string[];
-        latencyThreshold: number;
-        private httpResquestListening;
-        private httpRequestMethods;
-        private $document;
-        private $window;
-        private $timeout;
-        private $interval;
-        private $log;
-        private luisConfig;
-        private status;
-        private currentPromiseInterval;
-        private completeTimeout;
-        private progressBarTemplate;
-        private progressbarEl;
-        private isStarted;
-        constructor($document: angular.IDocumentService, $window: angular.IWindowService, $timeout: ng.ITimeoutService, $interval: ng.IIntervalService, $log: ng.ILogService, luisConfig: Lui.IConfig);
-        addProgressBar: (palette?: string) => void;
-        startListening: (httpRequestMethods?: string[]) => void;
-        stopListening: () => void;
-        isHttpResquestListening: () => boolean;
-        getHttpRequestMethods: () => string[];
-        start: () => void;
-        hide: () => void;
-        show: () => void;
-        setStatus: (status: number) => void;
-        complete: () => void;
-        getDomElement: () => ng.IAugmentedJQuery;
-    }
+declare module lui.progressbar {
 }
-declare module Lui.Directives.TableGrid {
-    class Tree {
-        node: Header;
-        children: Tree[];
+declare module lui.tablegrid {
+    interface ITree {
+        node: IHeader;
+        children: ITree[];
     }
-    class Header {
+    interface IHeader {
         label: string;
-        filterType: string;
-        hidden: boolean;
-        width: number;
-        fixed: boolean;
-        colspan: number;
-        rowspan: number;
-        textAlign: string;
-        getValue: (object: any) => string;
-        getOrderByValue: (object: any) => any;
-        getFilterValue: (object: any) => any;
+        filterType?: FilterType;
+        hidden?: boolean;
+        width?: number;
+        fixed?: boolean;
+        colspan?: number;
+        rowspan?: number;
+        textAlign?: string;
+        getValue(object: any): string;
+        getOrderByValue?(object: any): any;
+        getFilterValue?(object: any): any;
     }
-    class BrowseResult {
-        depth: number;
-        subChildren: number;
-        subDepth: number;
-        tree: Tree;
+    interface IBrowseResult {
+        depth?: number;
+        subChildren?: number;
+        subDepth?: number;
+        tree: ITree;
+    }
+    enum FilterType {
+        NONE = 0,
+        TEXT = 1,
+        SELECT = 2,
+        MULTISELECT = 3,
     }
 }
-declare module Lui.Directives {
-    class FilterTypeEnum {
-        static NONE: string;
-        static TEXT: string;
-        static SELECT: string;
-        static MULTISELECT: string;
-    }
+declare module lui.tablegrid {
     class LuidTableGridController {
         static IID: string;
         static $inject: Array<string>;
-        constructor($filter: Lui.ILuiFilters, $scope: IDataGridScope, $translate: angular.translate.ITranslateService, $timeout: ng.ITimeoutService);
+        constructor($filter: IFilterService, $scope: IDataGridScope, $translate: angular.translate.ITranslateService, $timeout: ng.ITimeoutService);
     }
 }
-declare module Lui.Directives {
+declare module lui.tablegrid {
     interface ILuidTableGridAttributes extends ng.IAttributes {
         height: string;
         heightType: string;
@@ -412,30 +398,37 @@ declare module Lui.Directives {
         link: ng.IDirectiveLinkFn;
     }
 }
-declare module Lui.Directives {
+declare module lui.tablegrid {
+}
+declare module lui.tablegrid {
     interface IDataGridScope extends angular.IScope {
-        FilterTypeEnum: FilterTypeEnum;
-        header: TableGrid.Tree;
+        FilterTypeEnum: {
+            NONE: FilterType;
+            TEXT: FilterType;
+            SELECT: FilterType;
+            MULTISELECT: FilterType;
+        };
+        header: ITree;
         datas: any[];
         selectable: boolean;
         defaultOrder: string;
         allChecked: any;
-        bodyRows: TableGrid.Header[][];
-        colDefinitions: TableGrid.Header[];
+        bodyRows: IHeader[][];
+        colDefinitions: IHeader[];
         existFixedRow: boolean;
         filters: {
-            header: TableGrid.Header;
+            header: IHeader;
             selectValues: string[];
             currentValues: string[];
         }[];
         filteredAndOrderedRows: any[];
-        headerRows: TableGrid.Header[][];
+        headerRows: IHeader[][];
         isSelectable: boolean;
         lockedWidth: number;
         masterCheckBoxCssClass: string;
-        scrollableRowDefinition: TableGrid.Header[];
+        scrollableRowDefinition: IHeader[];
         selected: {
-            orderBy: TableGrid.Header;
+            orderBy: IHeader;
             reverse: boolean;
         };
         visibleRows: any[];
@@ -449,16 +442,180 @@ declare module Lui.Directives {
         resizedHeaders: () => void;
         stripHtml: (html: string) => string;
         updateFilteredRows: () => void;
-        updateOrderedRows: (header: TableGrid.Header) => void;
+        updateOrderedRows: (header: IHeader) => void;
         updateViewAfterFiltering: () => void;
         updateViewAfterOrderBy: () => void;
     }
 }
-declare module Lui.Utils {
+declare module lui.translate {
+    const AVAILABLE_LANGUAGES: string[];
+    const LANGUAGES_TO_CODE: {
+        en: number;
+        de: number;
+        es: number;
+        fr: number;
+        it: number;
+        nl: number;
+    };
+    const CODES_TO_LANGUAGES: {
+        1031: string;
+        1033: string;
+        1034: string;
+        1036: string;
+        1040: string;
+        2067: string;
+    };
+    class CulturedList {
+        culture: string;
+        originalId: number;
+        values: ICulturedValue[];
+        constructor(culture: string);
+    }
+    interface ICulturedValue {
+        value: string;
+        originalLuccaCulturedLabelId?: number;
+        originalLuccaTranslationId?: number;
+    }
+    interface ILuccaTranslation {
+        id: number;
+        culturedLabels: ILuccaCulturedLabel[];
+    }
+    interface ILuccaCulturedLabel {
+        id: number;
+        cultureCode: number;
+        value: string;
+        translationId: number;
+    }
+}
+declare module lui.translate {
+    class LuidTranslationsListController {
+        static IID: string;
+        static $inject: string[];
+        private $scope;
+        constructor($scope: ILuidTranslationsListScope, $translate: ng.translate.ITranslateService, $timeout: ng.ITimeoutService);
+    }
+}
+declare module lui.translate {
+}
+declare module lui.translate {
+    interface ILuidTranslationsListScope extends ng.IScope {
+        cultures: string[];
+        currentCulture: string;
+        selectedCulture: string;
+        values: _.Dictionary<CulturedList>;
+        isDisabled: boolean;
+        addValueOnEnter: {
+            [key: number]: ($event: JQueryEventObject) => void;
+        };
+        uniqueId: string;
+        selectCulture(culture: string): void;
+        addValue(): void;
+        deleteValue(index: number): void;
+        isAddValueDisabled(): boolean;
+        onPaste(event: ClipboardEvent | JQueryEventObject, index: number): void;
+        getPlaceholder(culture: string, index: number): string;
+        onInputValueChanged(): void;
+        getUniqueId(culture: string, index: number): string;
+    }
+}
+declare module lui.userpicker {
+    interface IUserLookup {
+        id: number;
+        firstName: string;
+        lastName: string;
+        dtContractEnd?: string;
+        hasLeft?: boolean;
+        info?: string;
+        hasHomonyms?: boolean;
+        additionalProperties?: IHomonymProperty[];
+    }
+    interface IHomonymProperty {
+        translationKey: string;
+        name: string;
+        icon: string;
+        value?: string;
+    }
+}
+declare module lui.userpicker {
+    const MAGIC_PAGING: number;
+    const MAX_SEARCH_LIMIT: number;
+    class LuidUserPickerController {
+        static IID: string;
+        static $inject: Array<string>;
+        private $scope;
+        private $q;
+        private userPickerService;
+        private ngModelCtrl;
+        private multiple;
+        constructor($scope: ILuidUserPickerScope, $q: ng.IQService, userPickerService: IUserPickerService);
+        setNgModelCtrl(ngModelCtrl: ng.INgModelController, multiple?: boolean): void;
+        private getViewValue();
+        private setViewValue(value);
+        private initializeScope();
+        private tidyUp(users, clue?);
+        private refresh(clue?);
+        private getUsers(clue?);
+        private tidyUpAndAssign(allUsers, clue);
+        private resetUsers();
+        private getFilter(clue);
+    }
+}
+declare module lui.userpicker {
+}
+declare module lui.userpicker {
+}
+declare module lui.userpicker {
+    interface ILuidUserPickerScope extends ng.IScope {
+        placeholder: string;
+        showFormerEmployees: boolean;
+        displayMeFirst: boolean;
+        controlDisabled: boolean;
+        homonymsProperties: IHomonymProperty[];
+        customHttpService: ng.IHttpService;
+        appId: number;
+        operations: string[];
+        bypassOperationsFor: number[];
+        displayAllUsers: boolean;
+        onSelect: () => any;
+        onRemove: () => any;
+        customFilter: (user: IUserLookup) => boolean;
+        customInfo: (user: IUserLookup) => string;
+        customInfoAsync: (user: IUserLookup) => ng.IPromise<string>;
+        users: IUserLookup[];
+        lastPagingOffset: number;
+        myId: number;
+        apiUrl: string;
+        selectedUser: IUserLookup;
+        loadingMore: boolean;
+        selectedUsers: IUserLookup[];
+        onSelectedUserChanged(user: IUserLookup): void;
+        find(search: string): void;
+        loadMore(): void;
+        onSelectedUsersChanged(): void;
+        onSelectedUserRemoved(): void;
+        onOpen(isOpen: boolean): void;
+    }
+}
+declare module lui.userpicker {
+    interface IUserPickerService {
+        getMyId(): ng.IPromise<number>;
+        getMe(): ng.IPromise<IUserLookup>;
+        getHomonyms(users: IUserLookup[]): IUserLookup[];
+        getUsers(filters: string, paging?: number, offset?: number): ng.IPromise<IUserLookup[]>;
+        getAdditionalProperties(user: IUserLookup, properties: IHomonymProperty[]): ng.IPromise<IHomonymProperty[]>;
+        getUsersByIds(ids: number[]): ng.IPromise<IUserLookup[]>;
+        getUserById(id: number): ng.IPromise<IUserLookup>;
+        reduceAdditionalProperties(users: IUserLookup[]): IUserLookup[];
+        setCustomHttpService(httpService: ng.IHttpService): void;
+    }
+}
+declare module lui {
     interface IFormatter<T> {
         parseValue(value: any): T;
         formatValue(value: T): any;
     }
+}
+declare module lui.formatter {
     class MomentFormatter implements IFormatter<moment.Moment> {
         private format;
         constructor(format?: string);
@@ -472,7 +629,7 @@ declare module Lui.Utils {
         private formatString(value);
     }
 }
-declare module Lui.Utils {
+declare module lui.popover {
     interface IPopoverController {
         toggle($event?: ng.IAngularEvent): void;
         open($event?: ng.IAngularEvent): void;
@@ -484,14 +641,24 @@ declare module Lui.Utils {
         };
     }
     class ClickoutsideTrigger implements IPopoverController {
+        open: ($event?: ng.IAngularEvent) => void;
+        close: ($event?: ng.IAngularEvent) => void;
         private elt;
         private body;
         private $scope;
         private clickedOutside;
-        open: ($event?: ng.IAngularEvent) => void;
-        close: ($event?: ng.IAngularEvent) => void;
         constructor(elt: angular.IAugmentedJQuery, $scope: IClickoutsideTriggerScope, clickedOutside?: () => void);
         toggle($event?: ng.IAngularEvent): void;
-        private onClickedOutside($event?);
     }
+}
+declare module lui.scroll {
+}
+declare module lui {
+    interface IUploaderService {
+        postFromUrl(url: string): ng.IPromise<IFile>;
+        postDataURI(dataURI: string): ng.IPromise<IFile>;
+        postBlob(blob: Blob): ng.IPromise<IFile>;
+    }
+}
+declare module lui.upload {
 }
