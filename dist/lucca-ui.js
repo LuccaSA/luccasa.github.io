@@ -725,6 +725,7 @@ var lui;
                 this.scope = {
                     format: "@",
                     displayFormat: "@",
+                    rangeFormat: "@",
                     minMode: "@",
                     min: "=",
                     max: "=",
@@ -774,13 +775,18 @@ var lui;
                         $scope.toLabel = "To";
                         break;
                 }
+                this.rangeFormatDictionary = {
+                    en: {
+                        other: $scope.rangeFormat
+                    }
+                };
                 $scope.internal.startDisplayStr = "";
                 $scope.internal.endDisplayStr = "";
                 $scope.focusEndInputOnTab = { 9: function ($event) { _this.$scope.editEnd($event); } };
                 $scope.closePopoverOnTab = { 9: function ($event) { _this.closePopover(); _this.$scope.$apply(); } };
                 $scope.selectShortcut = function (shortcut) {
                     $scope.period = _this.toPeriod(shortcut);
-                    $scope.displayStr = _this.$filter("luifFriendlyRange")(_this.$scope.period);
+                    $scope.displayStr = _this.$filter("luifFriendlyRange")(_this.$scope.period, false, _this.rangeFormatDictionary);
                     _this.setViewValue($scope.period);
                     _this.closePopover();
                 };
@@ -874,7 +880,7 @@ var lui;
                 ngModelCtrl.$render = function () {
                     if (ngModelCtrl.$viewValue) {
                         _this.$scope.period = _this.getViewValue();
-                        _this.$scope.displayStr = _this.$filter("luifFriendlyRange")(_this.$scope.period);
+                        _this.$scope.displayStr = _this.$filter("luifFriendlyRange")(_this.$scope.period, false, _this.rangeFormatDictionary);
                         _this.$scope.internal.startDisplayStr = _this.$scope.period.start ? _this.$scope.period.start.format(_this.$scope.displayFormat || "L") : "";
                         _this.$scope.internal.endDisplayStr = _this.$scope.period.end ? _this.$scope.period.end.format(_this.$scope.displayFormat || "L") : "";
                     }
@@ -1036,7 +1042,7 @@ var lui;
                 }
                 this.$scope.direction = "";
                 this.setViewValue(this.$scope.period);
-                this.$scope.displayStr = this.$filter("luifFriendlyRange")(this.$scope.period);
+                this.$scope.displayStr = this.$filter("luifFriendlyRange")(this.$scope.period, false, this.rangeFormatDictionary);
                 this.element.removeClass("ng-open");
                 this.popoverController.close();
             };
@@ -2831,6 +2837,13 @@ var lui;
                     $scope.onInputValueChanged();
                     originalEvent.target.blur();
                 };
+                $scope.addValueAndFocus = function () {
+                    var maxIndex = $scope.values[$scope.selectedCulture].values.length - 1;
+                    $scope.addValue();
+                    $timeout(function () {
+                        document.getElementById($scope.getUniqueId($scope.selectedCulture, maxIndex + 1)).focus();
+                    });
+                };
                 $scope.addValueOnEnter = {
                     "13": function ($event) {
                         var index = Number($event.target.id.split("_")[2]);
@@ -2858,7 +2871,17 @@ var lui;
                         return selectedCultureValue;
                     }
                     var currentCultureValue = $scope.values[$scope.currentCulture].values[index].value;
-                    return $scope.isDisabled ? "" : (!!currentCultureValue ? currentCultureValue : $translate.instant("LUID_TRANSLATIONSLIST_INPUT_VALUE"));
+                    if (!!currentCultureValue) {
+                        return $scope.isDisabled ? "" : currentCultureValue;
+                    }
+                    for (var i = 0; i < $scope.cultures.length; i++) {
+                        var currentLanguage = $scope.cultures[i];
+                        var cultureValue = $scope.values[currentLanguage].values[index].value;
+                        if (!!cultureValue) {
+                            return $scope.isDisabled ? "" : cultureValue;
+                        }
+                    }
+                    return $scope.isDisabled ? "" : $translate.instant("LUID_TRANSLATIONSLIST_INPUT_VALUE");
                 };
                 $scope.getUniqueId = function (culture, index) {
                     return culture + "_" + $scope.uniqueId + "_" + index;
@@ -3267,8 +3290,8 @@ var lui;
                 return this.tidyUp(allUsers, clue)
                     .then(function (neatUsers) {
                     _this.$scope.users = _this.$scope.users || [];
-                    (_a = _this.$scope.users).push.apply(_a, neatUsers);
-                    return undefined;
+                    (_a = _this.$scope.users).push.apply(_a, _.filter(neatUsers, function (neatUser) { return !_.any(_this.$scope.users, function (user) { return user.id === neatUser.id; }); }));
+                    return _this.$scope.users;
                     var _a;
                 });
             };
@@ -3350,7 +3373,7 @@ var lui;
                     placeholder: "@",
                     onSelect: "&",
                     onRemove: "&",
-                    allowClear: "=",
+                    allowClear: "=?",
                     controlDisabled: "=",
                     showFormerEmployees: "=",
                     homonymsProperties: "=",
@@ -3400,7 +3423,7 @@ var lui;
                     placeholder: "@",
                     onSelect: "&",
                     onRemove: "&",
-                    allowClear: "=",
+                    allowClear: "=?",
                     controlDisabled: "=",
                     showFormerEmployees: "=",
                     homonymsProperties: "=",
@@ -3702,8 +3725,9 @@ var lui;
                 scope: { luidOnScrollBottom: "&" },
                 link: function ($scope, element) {
                     element.bind("scroll", function (eventArg) {
-                        var scrollbarHeight = eventArg.srcElement.scrollHeight - eventArg.srcElement.clientHeight;
-                        if (Math.abs(scrollbarHeight - eventArg.srcElement.scrollTop) < 2 && !!$scope.luidOnScrollBottom) {
+                        var target = eventArg.target || event.srcElement;
+                        var scrollbarHeight = target.scrollHeight - target.clientHeight;
+                        if (Math.abs(scrollbarHeight - target.scrollTop) < 2 && !!$scope.luidOnScrollBottom) {
                             $scope.luidOnScrollBottom();
                         }
                     });
@@ -3925,7 +3949,7 @@ var lui;
 
 
   $templateCache.put('lui/templates/image-picker/image-picker.html',
-    "<div class=\"lui image-picker\" ng-class=\"{ uploading: uploading }\"><div class=\"luid-image-picker-picture\" ng-style=\"pictureStyle\"><div class=\"input-overlay\"><span class=\"lui capitalized sentence\" translate=\"LUIIMGPICKER_UPLOAD_IMAGE\"></span> <input accept=\"image/*\" type=\"file\" ng-model=\"file\" class=\"fileInput\" file-model=\"image\" luid-image-cropper on-cropped=\"onCropped\" on-cancelled=\"onCancelled\" cropping-disabled=\"croppingDisabled\" cropping-ratio=\"croppingRatio\"> <i ng-if=\"deleteEnabled\" class=\"empty\" ng-click=\"onDelete()\"></i></div><div class=\"upload-overlay\"><div class=\"lui inverted x-large loader\"></div></div></div>"
+    "<div class=\"lui image-picker\" ng-class=\"{ uploading: uploading }\"><div class=\"luid-image-picker-picture\" ng-style=\"pictureStyle\"><div class=\"input-overlay\"><span class=\"lui capitalized sentence\" translate=\"LUIIMGPICKER_UPLOAD_IMAGE\"></span> <input accept=\"image/*\" type=\"file\" ng-model=\"file\" class=\"fileInput\" file-model=\"image\" luid-image-cropper on-cropped=\"onCropped\" on-cancelled=\"onCancelled\" cropping-disabled=\"croppingDisabled\" cropping-ratio=\"croppingRatio\"> <i ng-if=\"deleteEnabled\" class=\"empty\" ng-click=\"onDelete()\"></i></div><div class=\"upload-overlay\"><div class=\"lui inverted loader\"></div></div></div>"
   );
 
 
@@ -3970,17 +3994,17 @@ var lui;
 
 
   $templateCache.put('lui/templates/translations-list/translations-list.html',
-    "<div><nav class=\"lui dividing justified primary menu\"><a class=\"lui item\" ng-repeat=\"culture in cultures\" ng-class=\"{ 'active': culture === selectedCulture }\" ng-click=\"selectCulture(culture)\" ng-bind-html=\"culture | uppercase\"></a></nav><content><ul class=\"lui unstyled field container\"><li class=\"lui input animated left fade in\" ng-repeat=\"value in values[selectedCulture].values track by $index\"><input ng-model=\"values[selectedCulture].values[$index].value\" ng-disabled=\"isDisabled\" ng-paste=\"onPaste($event, $index)\" placeholder=\"{{ getPlaceholder(selectedCulture, $index) }}\" ng-change=\"onInputValueChanged()\" luid-keydown mappings=\"addValueOnEnter\" id=\"{{ getUniqueId($parent.selectedCulture, $index) }}\"> <button class=\"lui flat button icon cross close animated right fade in\" ng-click=\"deleteValue($index)\" ng-if=\"!isDisabled\" tabindex=\"-1\"></button></li></ul><footer ng-if=\"!isDisabled\"><button ng-click=\"addValue()\" ng-hide=\"isAddValueDisabled()\" class=\"lui button filled animated up fade in\" translate=\"LUID_TRANSLATIONSLIST_ADD_VALUE\"></button></footer></content></div>"
+    "<div><nav class=\"lui dividing justified primary menu\"><a class=\"lui item\" ng-repeat=\"culture in cultures\" ng-class=\"{ 'active': culture === selectedCulture }\" ng-click=\"selectCulture(culture)\" ng-bind-html=\"culture | uppercase\"></a></nav><content><ul class=\"lui unstyled field container\"><li class=\"lui input animated left fade in\" ng-repeat=\"value in values[selectedCulture].values track by $index\"><input ng-model=\"values[selectedCulture].values[$index].value\" ng-disabled=\"isDisabled\" ng-paste=\"onPaste($event, $index)\" placeholder=\"{{ getPlaceholder(selectedCulture, $index) }}\" ng-change=\"onInputValueChanged()\" luid-keydown mappings=\"addValueOnEnter\" id=\"{{ getUniqueId($parent.selectedCulture, $index) }}\"> <button class=\"lui flat button icon cross close animated right fade in\" ng-click=\"deleteValue($index)\" ng-if=\"!isDisabled\" tabindex=\"-1\"></button></li></ul><footer ng-if=\"!isDisabled\"><button ng-click=\"addValueAndFocus()\" ng-hide=\"isAddValueDisabled()\" class=\"lui button filled animated up fade in\" translate=\"LUID_TRANSLATIONSLIST_ADD_VALUE\"></button></footer></content></div>"
   );
 
 
   $templateCache.put('lui/templates/user-picker/user-picker.html',
-    "<ui-select ng-disabled=\"controlDisabled\" search-enabled=\"true\" on-select=\"onSelectedUserChanged($select.selected)\" on-remove=\"onRemove()\" uis-open-close=\"onOpen(isOpen)\"><ui-select-match placeholder=\"{{placeholder}}\" allow-clear=\"allowClear\"><span ng-if=\"$select.selected.id === -1\" translate>LUIDUSERPICKER_ALL</span> <span ng-if=\"$select.selected.id !== -1\" ng-bind-html=\"$select.selected.lastName + ' ' + $select.selected.firstName\"></span></ui-select-match><ui-select-choices repeat=\"user in users track by $index\" refresh=\"find($select.search)\" refresh-delay=\"0\" luid-on-scroll-bottom=\"loadMore()\"><div ng-if=\"user.id === myId\" class=\"selected-first\" ng-class=\"{'dividing': $index === 0}\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info : 'LUIDUSERPICKER_ME'\"></div><div ng-if=\"user.id === -1\" translate>LUIDUSERPICKER_ALL</div><div ng-if=\"user.id !== myId\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info\"></div><div ng-if=\"user.hasLeft\"><small translate translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small></div><div ng-if=\"user.hasHomonyms\" ng-repeat=\"property in user.additionalProperties\"><small><i class=\"lui icon {{property.icon}}\"></i> <b data-ng-bind-html=\"property.translationKey | translate\"></b> <span data-ng-bind-html=\"property.value\"></span></small></div></ui-select-choices></ui-select>"
+    "<ui-select ng-disabled=\"controlDisabled\" search-enabled=\"true\" on-select=\"onSelectedUserChanged($select.selected)\" on-remove=\"onRemove()\" uis-open-close=\"onOpen(isOpen)\"><ui-select-match placeholder=\"{{placeholder}}\" allow-clear=\"{{!!allowClear}}\"><span ng-if=\"$select.selected.id === -1\" translate>LUIDUSERPICKER_ALL</span> <span ng-if=\"$select.selected.id !== -1\" ng-bind-html=\"$select.selected.lastName + ' ' + $select.selected.firstName\"></span></ui-select-match><ui-select-choices repeat=\"user in users track by $index\" refresh=\"find($select.search)\" refresh-delay=\"0\" luid-on-scroll-bottom=\"loadMore()\"><div ng-if=\"user.id === myId\" class=\"selected-first\" ng-class=\"{'dividing': $index === 0}\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info : 'LUIDUSERPICKER_ME'\"></div><div ng-if=\"user.id === -1\" translate>LUIDUSERPICKER_ALL</div><div ng-if=\"user.id !== myId\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info\"></div><div ng-if=\"user.hasLeft\"><small translate translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small></div><div ng-if=\"user.hasHomonyms\" ng-repeat=\"property in user.additionalProperties\"><small><i class=\"lui icon {{property.icon}}\"></i> <b data-ng-bind-html=\"property.translationKey | translate\"></b> <span data-ng-bind-html=\"property.value\"></span></small></div></ui-select-choices></ui-select>"
   );
 
 
   $templateCache.put('lui/templates/user-picker/user-picker.multiple.html',
-    "<ui-select multiple ng-disabled=\"controlDisabled\" search-enabled=\"true\" on-select=\"onSelectedUsersChanged()\" on-remove=\"onSelectedUserRemoved()\" close-on-select=\"false\" reset-search-input=\"true\" uis-open-close=\"onOpen(isOpen)\"><ui-select-match placeholder=\"{{placeholder}}\" allow-clear=\"allowClear\">{{$item.lastName}} {{$item.firstName}}</ui-select-match><ui-select-choices repeat=\"user in users track by $index\" refresh=\"find($select.search)\" refresh-delay=\"0\" luid-on-scroll-bottom=\"loadMore()\"><div ng-if=\"user.id === myId\" class=\"selected-first\" ng-class=\"{'dividing': $index === 0}\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info : 'LUIDUSERPICKER_ME'\"></div><div ng-if=\"user.id === -1\" translate>LUIDUSERPICKER_ALL</div><div ng-if=\"user.id !== myId\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info\"></div><div ng-if=\"user.hasLeft\"><small translate translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small></div><div ng-if=\"user.hasHomonyms\" ng-repeat=\"property in user.additionalProperties\"><small><i class=\"lui icon {{property.icon}}\"></i> <b data-ng-bind-html=\"property.translationKey | translate\"></b> <span data-ng-bind-html=\"property.value\"></span></small></div></ui-select-choices></ui-select>"
+    "<ui-select multiple ng-disabled=\"controlDisabled\" search-enabled=\"true\" on-select=\"onSelectedUsersChanged()\" on-remove=\"onSelectedUserRemoved()\" close-on-select=\"false\" reset-search-input=\"true\" uis-open-close=\"onOpen(isOpen)\"><ui-select-match placeholder=\"{{placeholder}}\" allow-clear=\"{{!!allowClear}}\">{{$item.lastName}} {{$item.firstName}}</ui-select-match><ui-select-choices repeat=\"user in users track by $index\" refresh=\"find($select.search)\" refresh-delay=\"0\" luid-on-scroll-bottom=\"loadMore()\"><div ng-if=\"user.id === myId\" class=\"selected-first\" ng-class=\"{'dividing': $index === 0}\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info : 'LUIDUSERPICKER_ME'\"></div><div ng-if=\"user.id === -1\" translate>LUIDUSERPICKER_ALL</div><div ng-if=\"user.id !== myId\" ng-bind-html=\"user.lastName + ' ' + user.firstName | luifHighlight : $select.search : user.info\"></div><div ng-if=\"user.hasLeft\"><small translate translate-values=\"{dtContractEnd:user.dtContractEnd}\">LUIDUSERPICKER_FORMEREMPLOYEE</small></div><div ng-if=\"user.hasHomonyms\" ng-repeat=\"property in user.additionalProperties\"><small><i class=\"lui icon {{property.icon}}\"></i> <b data-ng-bind-html=\"property.translationKey | translate\"></b> <span data-ng-bind-html=\"property.value\"></span></small></div></ui-select-choices></ui-select>"
   );
 
 }]);
@@ -4144,7 +4168,11 @@ var lui;
 					});
 				}
 
-				ngModelCtrl.$render = function () { scope.internal = parse(ngModelCtrl.$viewValue); };
+				ngModelCtrl.$render = function () {
+					scope.internal = parse(ngModelCtrl.$viewValue);
+					translateCtrl.updateTooltip();
+				};
+
 				translateCtrl.updateViewValue = function () {
 					switch (mode) {
 						case "dictionary":
@@ -4155,6 +4183,20 @@ var lui;
 						case "lucca":
 							return updateLucca(scope.internal);
 					}
+				};
+
+				translateCtrl.updateTooltip = function () {
+					var tooltipText = "";
+					if(!!!scope.internal) {
+						scope.tooltipText = undefined;
+						return;
+					}
+					for(var i = 0; i < scope.cultures.length; i++) {
+						if(!!scope.internal[scope.cultures[i]]) {
+							tooltipText += "["+scope.cultures[i].toUpperCase()+"] : "+ scope.internal[scope.cultures[i]] + "\n";
+						}
+					}
+					scope.tooltipText = tooltipText;
 				};
 
 				var parse = function (value) {
@@ -4257,25 +4299,23 @@ var lui;
 			/******************
 			* UPDATE          *
 			******************/
-			$scope.update = function () { ctrl.updateViewValue(); };
+			$scope.update = function () { ctrl.updateViewValue(); ctrl.updateTooltip(); };
 
 			/******************
 			* FOCUS & BLUR    *
 			******************/
-			var blurTimeout;
+
 			$scope.focusInput = function () {
-				if (!!blurTimeout) {
-					$timeout.cancel(blurTimeout);
-					blurTimeout = undefined;
-				}
 				$scope.focused = true;
 			};
 			$scope.blurInput = function () {
-				blurTimeout = $timeout(function () {
-					$scope.focused = false;
-				}, 500);
+				$scope.focused = false;
 			};
 
+			$scope.blurOnEnter = function($event) {
+				$event.target.blur();
+				$event.preventDefault();
+			};
 		}]);
 
 	/**************************/
@@ -4283,15 +4323,15 @@ var lui;
 	/**************************/
 	angular.module("lui").run(["$templateCache", function ($templateCache) {
 		$templateCache.put("lui/directives/luidTranslations.html",
-			"<div class=\"lui dropdown {{size}} field\" ng-class=\"{open:focused || hovered}\" ng-mouseenter=\"hovered=true\" ng-mouseleave=\"hovered=false\">" +
+			"<div class=\"lui dropdown {{size}} field\" ng-class=\"{open:focused}\" tooltip-class=\"lui\" tooltip-placement=\"top\"  uib-tooltip=\"{{tooltipText}}\">" +
 			"	<div class=\"lui input\">" +
-			"		<input type=\"text\" ng-disabled=\"isDisabled\" ng-model=\"internal[currentCulture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-change=\"update()\">" +
+			"		<input type=\"text\" ng-disabled=\"isDisabled\" ng-model=\"internal[currentCulture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-keypress=\"$event.keyCode === 13 && blurOnEnter($event)\" ng-change=\"update()\">" +
 			"		<span class=\"unit\">{{currentCulture}}</span>" +
 			"	</div>" +
 			"	<div class=\"dropdown-menu\">" +
 			"		<div class=\"lui {{size}} field\" ng-repeat=\"culture in cultures\" ng-if=\"culture !== currentCulture\">" +
 			"			<div class=\"lui input\">" +
-			"				<input type=\"text\" ng-disabled=\"isDisabled\" ng-model=\"internal[culture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-change=\"update()\">" +
+			"				<input type=\"text\" ng-disabled=\"isDisabled\" ng-model=\"internal[culture]\" ng-focus=\"focusInput()\" ng-blur=\"blurInput()\" ng-keypress=\"$event.keyCode === 13 && blurOnEnter($event)\" ng-change=\"update()\">" +
 			"				<span class=\"unit addon\">{{culture}}</span>" +
 			"			</div>" +
 			"		</div>" +
@@ -4407,7 +4447,7 @@ var lui;
 				max:'=', // idem for max
 				step:'=', // the number of minutes to add/subtract when clicking the addMins button or scrolling on the add in input
 				referenceDate:'=', // when entering a time, the date to set it, also used to count the number of days between the ngModel and this date, if unavailable, will use min then max then today
-				disabled:'=',
+				isDisabled:'=',
 				showButtons:'=', // forces the buttons to be displayed even if neither inputs is focused
 				enforceValid:'=', // prevents entering an ng-invalid input by correcting the value when losing focus
 
@@ -4438,7 +4478,7 @@ var lui;
 				return newValue;
 			}
 
-			if ($scope.disabled) { return; }
+			if ($scope.isDisabled) { return; }
 			// $scope.ngModelCtrl.$setValidity('pattern', true);
 
 			update(calculateNewValue(), true);
@@ -4697,7 +4737,7 @@ var lui;
 					enableMouseWheel = false;
 				});
 				function subscription(e, incrStep){
-					if(!$scope.disabled && enableMouseWheel){
+					if(!$scope.isDisabled && enableMouseWheel){
 						$scope.$apply(incr((isScrollingUp(e)) ? incrStep : -incrStep ));
 						e.preventDefault();
 					}
@@ -4716,16 +4756,16 @@ var lui;
 
 	angular.module("lui").run(["$templateCache", function($templateCache) {
 		$templateCache.put("lui/directives/luidMoment.html",
-			"<div class='lui hours moment input' ng-class='{disabled:disabled}'>" +
-			"	<input type='text' ng-model='hours' ng-change='changeHours()' luid-select-on-click ng-pattern='pattern' luid-focus-on='focusHours' ng-focus='focusHours()' ng-blur='blurHours()' ng-disabled='disabled' maxLength='2' autocorrect='off' spellcheck='false'>" +
-			"	<i ng-click='incrHours()' ng-show='showButtons && hoursFocused' class='lui mp-button top left north arrow icon' ng-class='{disabled:maxed}'></i>" +
-			"	<i ng-click='decrHours()' ng-show='showButtons && hoursFocused' class='lui mp-button bottom left south arrow icon' ng-class='{disabled:mined}'></i>" +
+			"<div class='lui hours moment input' ng-class='{disabled: isDisabled}'>" +
+			"	<input type='text' ng-model='hours' ng-change='changeHours()' luid-select-on-click ng-pattern='pattern' luid-focus-on='focusHours' ng-focus='focusHours()' ng-blur='blurHours()' ng-disabled='isDisabled' maxLength='2' autocorrect='off' spellcheck='false'>" +
+			"	<i ng-click='incrHours()' ng-show='showButtons && hoursFocused' class='lui mp-button top left north arrow icon' ng-class='{disabled: maxed}'></i>" +
+			"	<i ng-click='decrHours()' ng-show='showButtons && hoursFocused' class='lui mp-button bottom left south arrow icon' ng-class='{disabled: mined}'></i>" +
 			"</div>" +
 			"<span class='separator'>:</span>" +
-			"<div class='lui minutes moment input' ng-class='{disabled:disabled}'>" +
-			"	<input type='text' ng-model='mins' ng-change='changeMins()' luid-select-on-click ng-pattern='pattern' luid-focus-on='focusMinutes' ng-focus='focusMins()' ng-blur='blurMins()' ng-disabled='disabled' maxLength='2' autocorrect='off' spellcheck='false'>" +
-			"	<i ng-click='incrMins()'  ng-show='showButtons && minsFocused' class='lui mp-button top right north arrow icon' ng-class='{disabled:maxed}'></i>" +
-			"	<i ng-click='decrMins()' ng-show='showButtons && minsFocused' class='lui mp-button bottom right south arrow icon' ng-class='{disabled:mined}'></i>" +
+			"<div class='lui minutes moment input' ng-class='{disabled: isDisabled}'>" +
+			"	<input type='text' ng-model='mins' ng-change='changeMins()' luid-select-on-click ng-pattern='pattern' luid-focus-on='focusMinutes' ng-focus='focusMins()' ng-blur='blurMins()' ng-disabled='isDisabled' maxLength='2' autocorrect='off' spellcheck='false'>" +
+			"	<i ng-click='incrMins()'  ng-show='showButtons && minsFocused' class='lui mp-button top right north arrow icon' ng-class='{disabled: maxed}'></i>" +
+			"	<i ng-click='decrMins()' ng-show='showButtons && minsFocused' class='lui mp-button bottom right south arrow icon' ng-class='{disabled: mined}'></i>" +
 			"</div>" +
 			"");
 	}]);
@@ -5209,6 +5249,7 @@ var lui;
 				startOnlyThisYear: 'date(dddd, MMMM Do) onwards',
 				endOnly: 'until date(dddd, LL)',
 				endOnlyThisYear: 'until date(dddd, MMMM Do)',
+				date: 'date(LL)',
 				sameDay: 'start(dddd, LL)',
 				sameDayThisYear: 'start(dddd, MMMM Do)',
 				sameMonth: 'start(MMMM Do) - end(Do\, YYYY)',
@@ -5222,6 +5263,7 @@ var lui;
 				startOnlyThisYear: 'à partir du date(dddd Do MMMM)',
 				endOnly: 'jusqu\'au date(dddd LL)',
 				endOnlyThisYear: 'jusqu\'au date(dddd Do MMMM)',
+				date: 'date(LL)',
 				sameDay: 'le start(dddd LL)',
 				sameDayThisYear: 'le start(dddd Do MMMM)',
 				sameMonth: 'du start(Do) au end(LL)',
@@ -5232,11 +5274,11 @@ var lui;
 			},
 			'de': {
 
-				// startOnly: 'start(dddd, LL) onwards',
-				// startOnlyThisYear: 'start(dddd, MMMM Do) onwards',
-				// endOnly: 'until end(dddd, LL)',
-				// endOnlyThisYear: 'until end(dddd, MMMM Do)',
-
+				startOnly: 'von date(Do MMMM)',
+				startOnlyThisYear: 'von date(LL)',
+				endOnly: 'bis date(Do MMMM)',
+				endOnlyThisYear: 'bis date(LL)',
+				date: 'date(LL)',
 				sameDay: 'der start(dddd LL)',
 				sameDayThisYear: 'der start(dddd Do MMMM)',
 				sameMonth: 'von start(Do) bis end(LL)',
@@ -5246,7 +5288,39 @@ var lui;
 				other: 'von start(LL) bis end(LL)'
 			}
 		};
-		return function (_block, _excludeEnd, _ampm, _translations) {
+		function getTrad(trads, locale, key, fallbackKey) {
+			if (!!trads && !!trads[locale] && !!trads[locale][key]) {
+				return trads[locale][key];
+			}
+			if (!!trads && !!trads[locale] && !!trads[locale][fallbackKey]) {
+				return trads[locale][fallbackKey];
+			}
+			// fallback on english in provided translations
+			var fallbackLocale = "en";
+			if (!!trads && !!trads[fallbackLocale] && !!trads[fallbackLocale][key]) {
+				return trads[fallbackLocale][key];
+			}
+			if (!!trads && !!trads[fallbackLocale] && !!trads[fallbackLocale][fallbackKey]) {
+				return trads[fallbackLocale][fallbackKey];
+			}
+
+			// fallback on standard translations if I couldnt find what I need in provided trads
+			var fallbackTrads = translations;
+			if (!!fallbackTrads && !!fallbackTrads[locale] && !!fallbackTrads[locale][key]) {
+				return fallbackTrads[locale][key];
+			}
+			if (!!fallbackTrads && !!fallbackTrads[locale] && !!fallbackTrads[locale][fallbackKey]) {
+				return fallbackTrads[locale][fallbackKey];
+			}
+			// fallback on english in provided translations
+			if (!!fallbackTrads && !!fallbackTrads[fallbackLocale] && !!fallbackTrads[fallbackLocale][key]) {
+				return fallbackTrads[fallbackLocale][key];
+			}
+			if (!!fallbackTrads && !!fallbackTrads[fallbackLocale] && !!fallbackTrads[fallbackLocale][fallbackKey]) {
+				return fallbackTrads[fallbackLocale][fallbackKey];
+			}
+		}
+		return function (_block, _excludeEnd, _translations) {
 			if(!_block){ return; }
 			var start = _block.start || _block.startsAt || _block.startsOn || _block.startDate;
 			var end = _block.end || _block.endsAt || _block.endsOn || _block.endDate;
@@ -5258,7 +5332,7 @@ var lui;
 			if(_excludeEnd){
 				end.add(-1,'minutes');
 			}
-			var trads = translations[moment.locale()] || translations.en;
+			var trad;
 			var format;
 			var regex;
 			if (!!start && !!end) {
@@ -5266,16 +5340,18 @@ var lui;
 				if(moment().year() === start.year() && moment().year() === end.year()){
 					format += "ThisYear";
 				}
-				regex = /(start\((.*?)\))(.*(end\((.*?)\))){0,1}/gi.exec(trads[format]);
-				return trads[format].replace(regex[1], start.format(regex[2])).replace(regex[4], end.format(regex[5]));
+				trad = getTrad(_translations, moment.locale(), format, "other");
+				regex = /(start\((.*?)\))(.*(end\((.*?)\))){0,1}/gi.exec(trad);
+				return trad.replace(regex[1], start.format(regex[2])).replace(regex[4], end.format(regex[5]));
 			}
 			format = !!start ? "startOnly" : "endOnly";
 			var date = start || end;
 			if(moment().year() === date.year()){
 				format += "ThisYear";
 			}
-			regex = /(date\((.*?)\))/gi.exec(trads[format]);
-			return trads[format].replace(regex[1], date.format(regex[2]));
+			trad = getTrad(_translations, moment.locale(), format, "date");
+			regex = /(date\((.*?)\))/gi.exec(trad);
+			return trad.replace(regex[1], date.format(regex[2]));
 		};
 	})
 	.filter('luifMoment', function () {
